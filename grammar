@@ -1,0 +1,40 @@
+program                     ->      declaration* EOF
+
+declaration                 ->      class | function_declaration | variable_declaration | statement
+class                       ->      "class" IDENTIFIER ( "<" IDENTIFIER )? "{" 
+                                        ( variable_declaration* )?
+                                        ( function_declaration* )? 
+                                    "}"
+function                    ->      "fun" function
+variable_declaration        ->      "let" IDENTIFIER ( "=" expression )? ";"
+
+statement                   ->      expression_statement | for | if | print | return | while | block
+expression_statement        ->      expression ";"
+for                         ->      "for" ( variable_declaration | expression_statement )? ";" expression? ";" expression? statement
+if                          ->      "if" expression statement ( "else" statement )?
+print                       ->      "print" expression ";"
+return                      ->      "return" expression? ";"
+while                       ->      "while" expression statement
+block                       ->      "{" declaration* "}"
+
+expression                  ->      assignment
+assignment                  ->      ( call ".")? IDENTIFIER "=" assignment | logical_or
+logical_or                  ->      logical_and ( "or" logical_and )*
+logical_and                 ->      equality ( "and" equality )*
+equality                    ->      comparison ( ( "!=" | "==" ) comparison )*
+comparison                  ->      term ( ( ">" | ">=" | "<" | "<=" ) term )*
+term                        ->      factor ( ( "-" | "+" ) factor )*
+factor                      ->      unary ( ( "/" | "*" ) unary )*
+unary                       ->      ( "not" | "-" ) unary | call
+call                        ->      primary ( "(" arguments? ")" | "." IDENTIFIER )*
+primary                     ->      "true" | "false" | "nil" | "this" | NUMBER | STRING | IDENTIFIER | "(" expression ")" | "super" "." IDENTIFIER
+
+function                    ->      IDENTIFIER "(" parameters? ")" block
+parameters                  ->      IDENTIFIER ( "," IDENTIFIER )*
+arguments                   ->      expression ( "," expression )*
+
+NUMBER                      ->      DIGIT+ ( "." DIGIT+ )?
+STRING                      ->      "\"" ^"\""* "\""
+IDENTIFIER                  ->      ALPHA ( ALPHA | DIGIT )*
+ALPHA                       ->      "a" ... "z" | "A" ... "Z" | "_"
+DIGIT                       ->      "0" ... "9"
