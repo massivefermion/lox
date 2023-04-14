@@ -66,7 +66,7 @@ impl<'a> Compiler<'a> {
                     self.compile_expression();
                     self.expect(Kind::Semicolon);
                     self.function().add_op(OpCode::Return);
-                    self.function().has_return();
+                    self.function().already_returns();
                 }
 
                 _ => self.compile_statement(true),

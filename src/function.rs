@@ -58,8 +58,12 @@ impl Function {
         self.codes.add(address);
     }
 
-    pub(crate) fn has_return(&mut self) -> Option<bool> {
+    pub(crate) fn has_return(&self) -> Option<bool> {
         self.has_return
+    }
+
+    pub(crate) fn already_returns(&mut self) {
+        self.has_return = Some(true);
     }
 }
 

@@ -15,7 +15,6 @@ pub(crate) struct VM {
     constants: Chunk<Value>,
     globals: HashMap<String, Value>,
     functions: Vec<(Function, u128)>,
-    locals: u128,
     start_time: Instant,
 }
 
@@ -26,7 +25,6 @@ impl VM {
             constants: Chunk::new(),
             globals: HashMap::new(),
             functions: vec![],
-            locals: 0,
             start_time: Instant::now(),
         }
     }
@@ -49,7 +47,6 @@ impl VM {
 
         if debug {
             println!("Constants\n{:?}\n", self.constants);
-            println!("OpCodes\n{:?}", function);
         }
 
         let mut iterator = function.into_iter().peekable();
@@ -58,7 +55,7 @@ impl VM {
 
             if debug {
                 println!("\nOpCode\n{:?}", op_code);
-                println!("\nStack\n{:?}\n", self.stack);
+                println!("\nStack\n{:#?}\n", self.stack);
             }
 
             match op_code {
@@ -249,7 +246,6 @@ impl VM {
                     let Some(value) = self.stack_get(address) else {
                         return InterpretResult::RuntimeError;
                     };
-                    self.locals += 1;
                     self.stack_push(value.clone());
                 }
 
@@ -321,13 +317,6 @@ impl VM {
                     };
                     let function_name = function_name.clone();
 
-                    let mut substack = vec![];
-                    for _ in 0..args {
-                        substack.push(self.stack_pop().unwrap());
-                    }
-                    substack.reverse();
-                    self.stack.push(substack);
-
                     match resolve_nif(&function_name) {
                         Some(nif) => {
                             let arity = nif.arity();
@@ -347,6 +336,13 @@ impl VM {
                             if function.arity() != args {
                                 return InterpretResult::RuntimeError;
                             }
+
+                            let mut substack = vec![];
+                            for _ in 0..args {
+                                substack.push(self.stack_pop().unwrap());
+                            }
+                            substack.reverse();
+                            self.stack.push(substack);
 
                             match self.run(function.clone()) {
                                 InterpretResult::Ok => (),
