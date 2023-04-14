@@ -3,22 +3,29 @@ use crate::value::Value;
 use std::iter::Peekable;
 use std::str::Chars;
 
-pub struct Scanner<'a> {
+#[derive(Clone)]
+pub(crate) struct Scanner<'a> {
+    storage: String,
+    current_scope: u128,
+    cursor: (usize, usize),
     source: Peekable<Chars<'a>>,
     token_start: Option<(usize, usize)>,
-    cursor: (usize, usize),
-    storage: String,
 }
 
 impl<'a> Scanner<'a> {
-    pub fn new(source: &'a String) -> Scanner<'a> {
+    pub(crate) fn new(source: &'a String) -> Scanner<'a> {
         Scanner {
-            source: source.chars().peekable(),
             cursor: (1, 1),
-            storage: String::new(),
+            current_scope: 0,
             token_start: None,
+            storage: String::new(),
+            source: source.chars().peekable(),
         }
     }
+
+    // pub(crate) fn current_scope(&self) -> u128 {
+    //     self.current_scope
+    // }
 
     fn new_token(&mut self, kind: Kind, start: (usize, usize), proceed_by: usize) -> Option<Token> {
         self.cursor = (self.cursor.0, self.cursor.1 + proceed_by);
@@ -56,14 +63,22 @@ impl Iterator for Scanner<'_> {
 
             Some('(') => self.new_token(Kind::LeftParen, self.cursor, 1),
             Some(')') => self.new_token(Kind::RightParen, self.cursor, 1),
-            Some('{') => self.new_token(Kind::LeftBrace, self.cursor, 1),
-            Some('}') => self.new_token(Kind::RightBrace, self.cursor, 1),
             Some(';') => self.new_token(Kind::Semicolon, self.cursor, 1),
             Some(',') => self.new_token(Kind::Comma, self.cursor, 1),
             Some('.') => self.new_token(Kind::Dot, self.cursor, 1),
             Some('+') => self.new_token(Kind::Plus, self.cursor, 1),
             Some('-') => self.new_token(Kind::Minus, self.cursor, 1),
             Some('*') => self.new_token(Kind::Star, self.cursor, 1),
+
+            Some('{') => {
+                self.current_scope += 1;
+                self.new_token(Kind::LeftBrace, self.cursor, 1)
+            }
+
+            Some('}') => {
+                self.current_scope -= 1;
+                self.new_token(Kind::RightBrace, self.cursor, 1)
+            }
 
             Some('!') => match self.source.peek() {
                 Some('=') => {
@@ -74,7 +89,7 @@ impl Iterator for Scanner<'_> {
                 None => Some(Token::new(
                     Kind::Error,
                     self.cursor,
-                    Some(Value::String(String::from("Unexpected end of script"))),
+                    Some(Value::String("Unexpected end of script".to_string())),
                 )),
             },
 
@@ -87,7 +102,7 @@ impl Iterator for Scanner<'_> {
                 None => Some(Token::new(
                     Kind::Error,
                     self.cursor,
-                    Some(Value::String(String::from("Unexpected end of script"))),
+                    Some(Value::String("Unexpected end of script".to_string())),
                 )),
             },
 
@@ -96,11 +111,15 @@ impl Iterator for Scanner<'_> {
                     self.source.next();
                     self.new_token(Kind::LessEqual, self.cursor, 2)
                 }
+                Some('>') => {
+                    self.source.next();
+                    self.new_token(Kind::Concat, self.cursor, 2)
+                }
                 Some(_) => self.new_token(Kind::Less, self.cursor, 1),
                 None => Some(Token::new(
                     Kind::Error,
                     self.cursor,
-                    Some(Value::String(String::from("Unexpected end of script"))),
+                    Some(Value::String("Unexpected end of script".to_string())),
                 )),
             },
 
@@ -113,21 +132,21 @@ impl Iterator for Scanner<'_> {
                 None => Some(Token::new(
                     Kind::Error,
                     self.cursor,
-                    Some(Value::String(String::from("Unexpected end of script"))),
+                    Some(Value::String("Unexpected end of script".to_string())),
                 )),
             },
 
             Some('"') => {
                 self.token_start = Some(self.cursor);
+                self.cursor = (self.cursor.0, self.cursor.1 + 1);
                 loop {
-                    let current = self.source.next().unwrap();
                     let peeked = self.source.peek();
 
                     if peeked.is_none() {
                         return Some(Token::new(
                             Kind::Error,
                             self.cursor,
-                            Some(Value::String(String::from("Unexpected end of script"))),
+                            Some(Value::String("Unexpected end of script".to_string())),
                         ));
                     }
 
@@ -137,13 +156,14 @@ impl Iterator for Scanner<'_> {
                         break;
                     }
 
-                    if current == '\n' {
+                    if *peeked.unwrap() == '\n' {
                         self.cursor = (self.cursor.0 + 1, 1);
                     } else {
                         self.cursor = (self.cursor.0, self.cursor.1 + 1);
                     }
 
-                    self.storage.push(current);
+                    self.storage.push(*peeked.unwrap());
+                    self.source.next();
                 }
 
                 let token = Token::new(
@@ -158,19 +178,21 @@ impl Iterator for Scanner<'_> {
 
             Some(character) if character.is_numeric() => {
                 self.token_start = Some(self.cursor);
+                self.cursor = (self.cursor.0, self.cursor.1 + 1);
+                self.storage.push(character);
                 loop {
                     let peeked = self.source.peek();
-                    self.storage.push(character);
 
                     if peeked.is_none()
-                        || !(*peeked.unwrap()).is_numeric()
-                        || self.storage.contains('.')
-                        || *peeked.unwrap() != '.'
+                        || (!(*peeked.unwrap()).is_numeric()
+                            && (self.storage.contains('.') || *peeked.unwrap() != '.'))
                     {
                         break;
                     }
 
                     self.cursor = (self.cursor.0, self.cursor.1 + 1);
+                    self.storage.push(*peeked.unwrap());
+                    self.source.next();
                 }
 
                 let token = Token::new(
@@ -185,20 +207,22 @@ impl Iterator for Scanner<'_> {
 
             Some(character) if character.is_alphabetic() || character == '_' => {
                 self.token_start = Some(self.cursor);
+                self.cursor = (self.cursor.0, self.cursor.1 + 1);
+                self.storage.push(character);
                 loop {
-                    let current = self.source.next().unwrap();
                     let peeked = self.source.peek();
 
-                    if peeked.is_none()
-                        || !(*peeked.unwrap()).is_numeric()
-                        || !(*peeked.unwrap()).is_alphabetic()
-                        || *peeked.unwrap() != '_'
-                    {
+                    if peeked.is_none() || {
+                        !(*peeked.unwrap()).is_numeric()
+                            && !(*peeked.unwrap()).is_alphabetic()
+                            && *peeked.unwrap() != '_'
+                    } {
                         break;
                     }
 
                     self.cursor = (self.cursor.0, self.cursor.1 + 1);
-                    self.storage.push(current);
+                    self.storage.push(*peeked.unwrap());
+                    self.source.next();
                 }
 
                 let token = if let Some(keyword_kind) = Kind::keyword_equivalent(&self.storage) {

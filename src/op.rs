@@ -1,23 +1,41 @@
-#[derive(Debug)]
-pub enum OpCode {
+#[derive(Debug, PartialEq)]
+pub(crate) enum OpCode {
     Constant,
     Return,
     Negate,
     Add,
     Multiply,
     Divide,
-    Print,
     Pop,
     Nil,
     DefGlobal,
+    GetGlobal,
+    SetGlobal,
+    GetLocal,
+    SetLocal,
+    JumpIfFalse,
+    Jump,
+    Not,
+    Concat,
+    ClearScope,
+    Call,
     Invalid,
+    // Print,
+    // NewLine,
 }
 
 impl OpCode {
-    pub fn has_parameter(&self) -> bool {
+    pub(crate) fn params(&self) -> u8 {
         match self {
-            OpCode::Constant => true,
-            _ => false,
+            Self::Constant
+            | Self::SetLocal
+            | Self::GetLocal
+            | Self::DefGlobal
+            | Self::SetGlobal
+            | Self::GetGlobal
+            | Self::ClearScope => 1,
+            Self::Call => 2,
+            _ => 0,
         }
     }
 }
@@ -25,17 +43,26 @@ impl OpCode {
 impl From<u8> for OpCode {
     fn from(value: u8) -> Self {
         match value {
-            0 => OpCode::Constant,
-            1 => OpCode::Return,
-            2 => OpCode::Negate,
-            3 => OpCode::Add,
-            4 => OpCode::Multiply,
-            5 => OpCode::Divide,
-            6 => OpCode::Print,
-            7 => OpCode::Pop,
-            8 => OpCode::Nil,
-            9 => OpCode::DefGlobal,
-            _ => OpCode::Invalid,
+            0 => Self::Constant,
+            1 => Self::Return,
+            2 => Self::Negate,
+            3 => Self::Add,
+            4 => Self::Multiply,
+            5 => Self::Divide,
+            6 => Self::Pop,
+            7 => Self::Nil,
+            8 => Self::DefGlobal,
+            9 => Self::GetGlobal,
+            10 => Self::SetGlobal,
+            11 => Self::GetLocal,
+            12 => Self::SetLocal,
+            13 => Self::JumpIfFalse,
+            14 => Self::Jump,
+            15 => Self::Not,
+            16 => Self::Concat,
+            17 => Self::ClearScope,
+            18 => Self::Call,
+            _ => Self::Invalid,
         }
     }
 }
@@ -43,17 +70,26 @@ impl From<u8> for OpCode {
 impl Into<u8> for OpCode {
     fn into(self) -> u8 {
         match self {
-            OpCode::Constant => 0,
-            OpCode::Return => 1,
-            OpCode::Negate => 2,
-            OpCode::Add => 3,
-            OpCode::Multiply => 4,
-            OpCode::Divide => 5,
-            OpCode::Print => 6,
-            OpCode::Pop => 7,
-            OpCode::Nil => 8,
-            OpCode::DefGlobal => 9,
-            OpCode::Invalid => 255,
+            Self::Constant => 0,
+            Self::Return => 1,
+            Self::Negate => 2,
+            Self::Add => 3,
+            Self::Multiply => 4,
+            Self::Divide => 5,
+            Self::Pop => 6,
+            Self::Nil => 7,
+            Self::DefGlobal => 8,
+            Self::GetGlobal => 9,
+            Self::SetGlobal => 10,
+            Self::GetLocal => 11,
+            Self::SetLocal => 12,
+            Self::JumpIfFalse => 13,
+            Self::Jump => 14,
+            Self::Not => 15,
+            Self::Concat => 16,
+            Self::ClearScope => 17,
+            Self::Call => 18,
+            Self::Invalid => 255,
         }
     }
 }

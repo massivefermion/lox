@@ -1,27 +1,28 @@
-use crate::value;
+use crate::value::Value;
 
-pub struct Token {
+#[derive(Debug, Clone)]
+pub(crate) struct Token {
     kind: Kind,
-    start: (usize, usize),
-    value: Option<value::Value>,
+    // start: (usize, usize),
+    value: Option<Value>,
 }
 
 impl Token {
-    pub fn new(kind: Kind, start: (usize, usize), value: Option<value::Value>) -> Token {
-        Token { kind, start, value }
+    pub(crate) fn new(kind: Kind, _start: (usize, usize), value: Option<Value>) -> Token {
+        Token { kind, value }
     }
 
-    pub fn kind(&self) -> Kind {
+    pub(crate) fn kind(&self) -> Kind {
         self.kind.clone()
     }
 
-    pub fn value(&self) -> Option<value::Value> {
+    pub(crate) fn value(&self) -> Option<Value> {
         self.value.clone()
     }
 }
 
-#[derive(Clone, PartialEq)]
-pub enum Kind {
+#[derive(Clone, PartialEq, Debug)]
+pub(crate) enum Kind {
     // Single-character tokens.
     LeftParen,
     RightParen,
@@ -38,6 +39,7 @@ pub enum Kind {
     // One or two character tokens.
     Bang,
     BangEqual,
+    Concat,
     Equal,
     EqualEqual,
     Greater,
@@ -54,6 +56,7 @@ pub enum Kind {
     And,
     Class,
     Else,
+    Expands,
     False,
     Fun,
     For,
@@ -62,7 +65,8 @@ pub enum Kind {
     Nil,
     Not,
     Or,
-    Print,
+    // Print,
+    // PrintLn,
     Return,
     Super,
     This,
@@ -74,11 +78,12 @@ pub enum Kind {
 }
 
 impl Kind {
-    pub fn keyword_equivalent(candidate: &String) -> Option<Kind> {
+    pub(crate) fn keyword_equivalent(candidate: &String) -> Option<Kind> {
         match candidate.as_str() {
             "and" => Some(Self::And),
             "class" => Some(Self::Class),
             "else" => Some(Self::Else),
+            "expands" => Some(Self::Expands),
             "false" => Some(Self::False),
             "fun" => Some(Self::Fun),
             "for" => Some(Self::For),
@@ -86,7 +91,8 @@ impl Kind {
             "nil" => Some(Self::Nil),
             "not" => Some(Self::Not),
             "or" => Some(Self::Or),
-            "print" => Some(Self::Print),
+            // "print" => Some(Self::Print),
+            // "println" => Some(Self::PrintLn),
             "return" => Some(Self::Return),
             "super" => Some(Self::Super),
             "this" => Some(Self::This),

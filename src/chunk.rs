@@ -2,26 +2,35 @@ use std::fmt::{self, Debug};
 use std::iter::IntoIterator;
 
 #[derive(Clone)]
-pub struct Chunk<T> {
+pub(crate) struct Chunk<T> {
     storage: Vec<T>,
 }
 
 impl<T> Chunk<T> {
-    pub fn new() -> Chunk<T> {
+    pub(crate) fn new() -> Chunk<T> {
         Chunk { storage: vec![] }
     }
 
-    pub fn add(&mut self, item: T) -> usize {
+    pub(crate) fn add(&mut self, item: T) -> usize {
         self.storage.push(item);
         self.storage.len() - 1
     }
 
-    pub fn append(&mut self, items: &mut Vec<T>) {
-        self.storage.append(items);
+    // pub(crate) fn append(&mut self, items: &mut Vec<T>) {
+    //     self.storage.append(items);
+    // }
+
+    pub(crate) fn get(&self, address: usize) -> Option<&T> {
+        self.storage.get(address)
     }
 
-    pub fn get(&self, address: usize) -> Option<&T> {
-        self.storage.get(address)
+    pub(crate) fn set(&mut self, address: usize, item: T) {
+        self.storage.remove(address);
+        self.storage.insert(address, item);
+    }
+
+    pub(crate) fn size(&self) -> usize {
+        self.storage.len()
     }
 }
 
@@ -44,7 +53,7 @@ impl<T: Debug> Debug for Chunk<T> {
     }
 }
 
-pub struct ChunkIterator<'a, T> {
+pub(crate) struct ChunkIterator<'a, T> {
     storage: &'a Vec<T>,
     index: usize,
 }

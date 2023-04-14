@@ -1,9 +1,9 @@
 program                     ->      declaration* EOF
 
 declaration                 ->      class | function_declaration | variable_declaration | statement
-class                       ->      "class" IDENTIFIER ( "<" IDENTIFIER )? "{" 
-                                        ( variable_declaration* )?
-                                        ( function_declaration* )? 
+class                       ->      "class" IDENTIFIER ( "expands" IDENTIFIER )? "{" 
+                                        ( ( "pub"? IDENTIFIER ( "=" expression )? ";" )* )?
+                                        ( ( "pub"? function )* )? 
                                     "}"
 function                    ->      "fun" function
 variable_declaration        ->      "let" IDENTIFIER ( "=" expression )? ";"
@@ -23,7 +23,7 @@ logical_or                  ->      logical_and ( "or" logical_and )*
 logical_and                 ->      equality ( "and" equality )*
 equality                    ->      comparison ( ( "!=" | "==" ) comparison )*
 comparison                  ->      term ( ( ">" | ">=" | "<" | "<=" ) term )*
-term                        ->      factor ( ( "-" | "+" ) factor )*
+term                        ->      factor ( ( "-" | "+" | "<>" ) factor )*
 factor                      ->      unary ( ( "/" | "*" ) unary )*
 unary                       ->      ( "not" | "-" ) unary | call
 call                        ->      primary ( "(" arguments? ")" | "." IDENTIFIER )*

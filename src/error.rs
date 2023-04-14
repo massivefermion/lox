@@ -1,22 +1,21 @@
 use std::error::Error;
 use std::fmt;
-use std::process::exit;
+use std::process::{ExitCode, Termination};
 
 #[derive(Debug)]
-pub enum ErrorContext {
-    Runtime,
+pub(crate) enum ErrorContext {
     Compile,
 }
 
 #[derive(Debug)]
-pub struct LoxError {
-    line: Option<usize>,
+pub(crate) struct LoxError {
     message: String,
+    line: Option<usize>,
     context: ErrorContext,
 }
 
 impl LoxError {
-    pub fn new(msg: &str, context: ErrorContext, line: Option<usize>) -> LoxError {
+    pub(crate) fn new(msg: &str, context: ErrorContext, line: Option<usize>) -> LoxError {
         LoxError {
             line,
             context,
@@ -46,7 +45,24 @@ impl Error for LoxError {
     }
 }
 
-pub fn error_out<E: Error>(error: E) {
-    eprintln!("{}", error);
-    exit(1);
+// pub(crate) fn error_out<E: Error>(error: E) {
+//     eprintln!("{}", error);
+//     exit(1);
+// }
+
+#[derive(Debug)]
+pub(crate) enum InterpretResult {
+    Ok,
+    CompileError,
+    RuntimeError,
+    CliError,
+}
+
+impl Termination for InterpretResult {
+    fn report(self) -> std::process::ExitCode {
+        match self {
+            Self::Ok => ExitCode::SUCCESS,
+            _ => ExitCode::FAILURE,
+        }
+    }
 }
