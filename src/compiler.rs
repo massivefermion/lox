@@ -307,8 +307,7 @@ impl<'a> Compiler<'a> {
             _ => {
                 self.compile_expression();
                 self.expect(Kind::Semicolon);
-                // self.function().add_op(OpCode::Pop);
-                // self.function().add_op(OpCode::Nil);
+                self.function().add_op(OpCode::Pop);
             }
         }
     }

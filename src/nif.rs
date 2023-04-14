@@ -53,7 +53,7 @@ impl Nif for Print {
         let mut args = vec![];
 
         for _ in 0..args_count {
-            args.push(vm.stack_pop().unwrap());
+            args.push(vm.stack_peek().unwrap());
         }
 
         args.iter()
@@ -79,7 +79,7 @@ impl Nif for PrintLn {
         let mut args = vec![];
 
         for _ in 0..args_count {
-            args.push(vm.stack_pop().unwrap());
+            args.push(vm.stack_peek().unwrap());
         }
 
         args.iter()

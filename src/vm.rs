@@ -46,7 +46,7 @@ impl VM {
         };
 
         if debug {
-            println!("Constants\n{:?}\n", self.constants);
+            println!("{} => Constants\n{:?}\n", function, self.constants);
         }
 
         let mut iterator = function.into_iter().peekable();
@@ -54,8 +54,8 @@ impl VM {
             let op_code = OpCode::from(current as u8);
 
             if debug {
-                println!("\nOpCode\n{:?}", op_code);
-                println!("\nStack\n{:#?}\n", self.stack);
+                println!("\n{} OpCode\n{:?}", function, op_code);
+                println!("\n{} Stack\n{:#?}\n", function, self.stack);
             }
 
             match op_code {
