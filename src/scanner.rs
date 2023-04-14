@@ -6,7 +6,6 @@ use std::str::Chars;
 #[derive(Clone)]
 pub(crate) struct Scanner<'a> {
     storage: String,
-    current_scope: u128,
     cursor: (usize, usize),
     source: Peekable<Chars<'a>>,
     token_start: Option<(usize, usize)>,
@@ -16,16 +15,11 @@ impl<'a> Scanner<'a> {
     pub(crate) fn new(source: &'a String) -> Scanner<'a> {
         Scanner {
             cursor: (1, 1),
-            current_scope: 0,
             token_start: None,
             storage: String::new(),
             source: source.chars().peekable(),
         }
     }
-
-    // pub(crate) fn current_scope(&self) -> u128 {
-    //     self.current_scope
-    // }
 
     fn new_token(&mut self, kind: Kind, start: (usize, usize), proceed_by: usize) -> Option<Token> {
         self.cursor = (self.cursor.0, self.cursor.1 + proceed_by);
@@ -69,16 +63,8 @@ impl Iterator for Scanner<'_> {
             Some('+') => self.new_token(Kind::Plus, self.cursor, 1),
             Some('-') => self.new_token(Kind::Minus, self.cursor, 1),
             Some('*') => self.new_token(Kind::Star, self.cursor, 1),
-
-            Some('{') => {
-                self.current_scope += 1;
-                self.new_token(Kind::LeftBrace, self.cursor, 1)
-            }
-
-            Some('}') => {
-                self.current_scope -= 1;
-                self.new_token(Kind::RightBrace, self.cursor, 1)
-            }
+            Some('{') => self.new_token(Kind::LeftBrace, self.cursor, 1),
+            Some('}') => self.new_token(Kind::RightBrace, self.cursor, 1),
 
             Some('!') => match self.source.peek() {
                 Some('=') => {
@@ -89,7 +75,7 @@ impl Iterator for Scanner<'_> {
                 None => Some(Token::new(
                     Kind::Error,
                     self.cursor,
-                    Some(Value::String("Unexpected end of script".to_string())),
+                    Some(Value::from("Unexpected end of script")),
                 )),
             },
 
@@ -102,7 +88,7 @@ impl Iterator for Scanner<'_> {
                 None => Some(Token::new(
                     Kind::Error,
                     self.cursor,
-                    Some(Value::String("Unexpected end of script".to_string())),
+                    Some(Value::from("Unexpected end of script")),
                 )),
             },
 
@@ -119,7 +105,7 @@ impl Iterator for Scanner<'_> {
                 None => Some(Token::new(
                     Kind::Error,
                     self.cursor,
-                    Some(Value::String("Unexpected end of script".to_string())),
+                    Some(Value::from("Unexpected end of script")),
                 )),
             },
 
@@ -132,7 +118,7 @@ impl Iterator for Scanner<'_> {
                 None => Some(Token::new(
                     Kind::Error,
                     self.cursor,
-                    Some(Value::String("Unexpected end of script".to_string())),
+                    Some(Value::from("Unexpected end of script")),
                 )),
             },
 
@@ -146,7 +132,7 @@ impl Iterator for Scanner<'_> {
                         return Some(Token::new(
                             Kind::Error,
                             self.cursor,
-                            Some(Value::String("Unexpected end of script".to_string())),
+                            Some(Value::from("Unexpected end of script")),
                         ));
                     }
 
