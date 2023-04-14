@@ -16,6 +16,7 @@ pub(crate) struct VM {
     globals: HashMap<String, Value>,
     functions: Vec<(Function, u128)>,
     start_time: Instant,
+    stdout: Option<Vec<String>>,
 }
 
 impl VM {
@@ -26,6 +27,7 @@ impl VM {
             globals: HashMap::new(),
             functions: vec![],
             start_time: Instant::now(),
+            stdout: None,
         }
     }
 
@@ -404,15 +406,271 @@ impl VM {
         self.start_time
     }
 
-    fn get_constant(&self, address: usize) -> Option<&Value> {
-        self.constants.get(address)
-    }
-
-    pub fn resolve_function(&self, name: &String) -> Option<Function> {
+    pub(crate) fn resolve_function(&self, name: &String) -> Option<Function> {
         self.functions
             .iter()
             .rev()
             .find(|(function, _)| function.name() == *name)
             .map(|(function, _)| function.clone())
+    }
+
+    pub(crate) fn get_stdout(&mut self) -> Option<&mut Vec<String>> {
+        self.stdout.as_mut()
+    }
+
+    fn get_constant(&self, address: usize) -> Option<&Value> {
+        self.constants.get(address)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+    use std::time::Instant;
+
+    use crate::chunk::Chunk;
+    use crate::error::InterpretResult;
+
+    fn new_for_test() -> super::VM {
+        super::VM {
+            stack: vec![vec![]],
+            constants: Chunk::new(),
+            globals: HashMap::new(),
+            functions: vec![],
+            start_time: Instant::now(),
+            stdout: Some(vec![]),
+        }
+    }
+
+    #[test]
+    fn hello_world() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(r#"println("Hello World!");"#.to_string()),
+            InterpretResult::Ok
+        );
+        assert_eq!(
+            vm.stdout.unwrap(),
+            vec!["Hello World!".to_string(), "\n".to_string()]
+        );
+    }
+
+    #[test]
+    fn scope() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    let a = "global";
+                    {
+                        let b = "local";
+                        print(a);
+                        println(b);
+                    }
+                    print(b);
+                "#
+                .to_string()
+            ),
+            InterpretResult::RuntimeError
+        );
+        assert_eq!(
+            vm.stdout.unwrap(),
+            vec!["global".to_string(), "local".to_string(), "\n".to_string()]
+        );
+    }
+
+    #[test]
+    fn nested_scope() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    let a = "global";
+                    {
+                        let b = "local1";
+                        {
+                            let c = "local2";
+                            print(a);
+                            print(b);
+                            println(c);
+                        }
+                        print(c);
+                    }
+                    print(b);
+                "#
+                .to_string()
+            ),
+            InterpretResult::RuntimeError
+        );
+        assert_eq!(
+            vm.stdout.unwrap(),
+            vec![
+                "global".to_string(),
+                "local1".to_string(),
+                "local2".to_string(),
+                "\n".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn add_function() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun add(a, b) {
+                        return a+b;
+                    }
+                    print(add(2, 3));
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout.unwrap(), vec!["5".to_string()]);
+    }
+
+    #[test]
+    fn inner_function() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun outer() {
+                        fun inner() {
+                            println("inside");
+                        }
+                        inner();
+                    }
+                    outer();
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(
+            vm.stdout.unwrap(),
+            vec!["inside".to_string(), "\n".to_string()]
+        );
+    }
+
+    #[test]
+    fn inner_function_only_seen_inside() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun outer() {
+                        fun inner() {
+                            println("inside");
+                        }
+                        inner();
+                    }
+                    inner();
+                "#
+                .to_string()
+            ),
+            InterpretResult::RuntimeError
+        );
+    }
+
+    #[test]
+    fn local_variable() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    let x = "global";
+                    fun outer() {
+                        let x = "local";
+                        println(x);
+                    }
+                    outer();
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(
+            vm.stdout.unwrap(),
+            vec!["local".to_string(), "\n".to_string()]
+        );
+    }
+
+    #[test]
+    fn local_variable_outside() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    let x = "global";
+                    fun outer() {
+                        let x = "local";
+                        fun inner() {
+                            println(x);
+                        }
+                        inner();
+                    }
+                    outer();
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(
+            vm.stdout.unwrap(),
+            vec!["local".to_string(), "\n".to_string()]
+        );
+    }
+
+    #[test]
+    fn first_class_function() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun creator() {
+                        fun join(a, b) {
+                            return a <> b;
+                        }
+                        return join;
+                    }
+                    let join = creator();
+                    println(join("U-", 235));
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(
+            vm.stdout.unwrap(),
+            vec!["U-235".to_string(), "\n".to_string()]
+        );
+    }
+
+    #[test]
+    fn closure() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun creator(a) {
+                        fun join(b) {
+                            return a <> b;
+                        }
+                        return join;
+                    }
+                    let join = creator("U-");
+                    println(235);
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(
+            vm.stdout.unwrap(),
+            vec!["U-235".to_string(), "\n".to_string()]
+        );
     }
 }

@@ -50,7 +50,7 @@ impl Error for LoxError {
 //     exit(1);
 // }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(crate) enum InterpretResult {
     Ok,
     CompileError,

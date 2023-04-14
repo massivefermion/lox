@@ -56,13 +56,26 @@ impl Nif for Print {
             args.push(vm.stack_peek().unwrap());
         }
 
-        args.iter()
-            .rev()
-            .map(|item| {
-                let item: String = item.clone().into();
-                item
-            })
-            .for_each(|item| print!("{}", item));
+        match vm.get_stdout() {
+            Some(stdout) => {
+                args.iter()
+                    .rev()
+                    .map(|item| {
+                        let item: String = item.clone().into();
+                        item
+                    })
+                    .for_each(|item| stdout.push(item.clone()));
+            }
+            None => {
+                args.iter()
+                    .rev()
+                    .map(|item| {
+                        let item: String = item.clone().into();
+                        item
+                    })
+                    .for_each(|item| print!("{}", item));
+            }
+        };
     }
 }
 
@@ -82,13 +95,27 @@ impl Nif for PrintLn {
             args.push(vm.stack_peek().unwrap());
         }
 
-        args.iter()
-            .rev()
-            .map(|item| {
-                let item: String = item.clone().into();
-                item
-            })
-            .for_each(|item| print!("{}", item));
-        println!();
+        match vm.get_stdout() {
+            Some(stdout) => {
+                args.iter()
+                    .rev()
+                    .map(|item| {
+                        let item: String = item.clone().into();
+                        item
+                    })
+                    .for_each(|item| stdout.push(item.clone()));
+                stdout.push("\n".to_string());
+            }
+            None => {
+                args.iter()
+                    .rev()
+                    .map(|item| {
+                        let item: String = item.clone().into();
+                        item
+                    })
+                    .for_each(|item| print!("{}", item));
+                println!();
+            }
+        };
     }
 }
