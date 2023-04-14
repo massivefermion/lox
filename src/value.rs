@@ -1,10 +1,12 @@
+use crate::function::Function;
+
 #[derive(Debug, Clone)]
 pub(crate) enum Value {
     Nil,
     Double(f64),
     Boolean(bool),
     String(String),
-    // Function(Function),
+    Function(Function),
 }
 
 impl Into<f64> for Value {
@@ -24,7 +26,7 @@ impl Into<String> for Value {
             Self::Boolean(true) => "true".to_string(),
             Self::Boolean(false) => "false".to_string(),
             Self::Double(value) => value.to_string(),
-            // Self::Function(value) => value.to_string(),
+            Self::Function(value) => value.to_string(),
         }
     }
 }

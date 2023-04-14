@@ -469,7 +469,7 @@ impl<'a> Compiler<'a> {
 
             Some(token) if token.kind() == Kind::Identifier => {
                 let name: String = token.value().unwrap().into();
-                let address = self.resolve_local(name);
+                let address = self.resolve_local(name.clone());
                 match self.scanner.peek() {
                     Some(token) if token.kind() == Kind::Equal && can_assign => {
                         let token = token.clone();
@@ -552,9 +552,15 @@ impl<'a> Compiler<'a> {
                             self.function().add_op(OpCode::GetLocal);
                             self.function().add_address(address as usize);
                         }
-                        None => {
+
+                        None if !self.vm.function_exists(self.scope_depth, &name) => {
                             self.function().add_op(OpCode::GetGlobal);
                             self.add_constant(token.value().unwrap());
+                        }
+
+                        _ => {
+                            let function = self.vm.resolve_function(&name).unwrap();
+                            self.add_constant(Value::Function(function));
                         }
                     },
                 }

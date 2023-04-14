@@ -104,7 +104,7 @@ impl VM {
                             self.stack_push(Value::Boolean(true))
                         }
                         Value::String(_) => self.stack_push(Value::Boolean(false)),
-                        // _ => return InterpretResult::RuntimeError,
+                        _ => return InterpretResult::RuntimeError,
                     }
                 }
 
@@ -261,7 +261,7 @@ impl VM {
                         Value::Double(_) => false,
                         Value::String(_) => false,
                         Value::Nil => true,
-                        // _ => return InterpretResult::RuntimeError,
+                        _ => return InterpretResult::RuntimeError,
                     };
 
                     let Some( size) = iterator.next() else {
@@ -408,7 +408,7 @@ impl VM {
         self.constants.get(address)
     }
 
-    fn resolve_function(&self, name: &String) -> Option<Function> {
+    pub fn resolve_function(&self, name: &String) -> Option<Function> {
         self.functions
             .iter()
             .rev()
