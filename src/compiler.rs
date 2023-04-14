@@ -554,7 +554,6 @@ impl<'a> Compiler<'a> {
                             self.function().add_address(address as usize);
                         }
                         None => {
-                            println!("###############");
                             self.function().add_op(OpCode::GetGlobal);
                             self.add_constant(token.value().unwrap());
                         }

@@ -392,10 +392,8 @@ impl VM {
 
     pub(crate) fn stack_get(&self, address: usize) -> Option<Value> {
         self.stack
-            .clone()
-            .into_iter()
-            .flatten()
-            .collect::<Vec<Value>>()
+            .last()
+            .unwrap()
             .get(address)
             .map(|value| value.clone())
     }
