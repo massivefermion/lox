@@ -17,8 +17,8 @@ pub(crate) enum OpCode {
     Jump,
     Not,
     Concat,
-    ClearScope,
     Call,
+    ClearScope,
     Invalid,
     // Print,
     // NewLine,
@@ -34,7 +34,7 @@ impl OpCode {
             | Self::SetGlobal
             | Self::GetGlobal
             | Self::ClearScope => 1,
-            Self::Call => 2,
+            Self::Call => 3,
             _ => 0,
         }
     }
@@ -60,8 +60,8 @@ impl From<u8> for OpCode {
             14 => Self::Jump,
             15 => Self::Not,
             16 => Self::Concat,
-            17 => Self::ClearScope,
-            18 => Self::Call,
+            17 => Self::Call,
+            18 => Self::ClearScope,
             _ => Self::Invalid,
         }
     }
@@ -87,8 +87,8 @@ impl Into<u8> for OpCode {
             Self::Jump => 14,
             Self::Not => 15,
             Self::Concat => 16,
-            Self::ClearScope => 17,
-            Self::Call => 18,
+            Self::Call => 17,
+            Self::ClearScope => 18,
             Self::Invalid => 255,
         }
     }

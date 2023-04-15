@@ -287,20 +287,16 @@ impl VM {
                     }
                 }
 
-                OpCode::ClearScope => {
-                    let Some(given_scope) = iterator.next() else {
+                OpCode::Call => {
+                    iterator.next();
+                    let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
+                    let Some(Value::Double(scope)) = self.get_constant(address as usize) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let scope = *scope as u128;
 
-                    self.functions = self
-                        .functions
-                        .iter()
-                        .filter(|(_, scope)| *scope as usize != given_scope)
-                        .map(|item| item.clone())
-                        .collect();
-                }
-
-                OpCode::Call => {
                     iterator.next();
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
@@ -331,7 +327,7 @@ impl VM {
                         }
 
                         None => {
-                            let Some(function) = self.resolve_function(&function_name) else {
+                            let Some(function) = self.resolve_function(&function_name, scope) else {
                                 return InterpretResult::RuntimeError;
                             };
 
@@ -352,6 +348,18 @@ impl VM {
                             }
                         }
                     }
+                }
+
+                OpCode::ClearScope => {
+                    iterator.next();
+                    let Some(address) = iterator.next() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(Value::Double(scope)) = self.get_constant(address as usize) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let scope = *scope as u128;
+                    self.clear_scope_functions(scope);
                 }
 
                 _ => return InterpretResult::CompileError,
@@ -406,16 +414,53 @@ impl VM {
         self.start_time
     }
 
-    pub(crate) fn resolve_function(&self, name: &String) -> Option<Function> {
-        self.functions
-            .iter()
-            .rev()
-            .find(|(function, _)| function.name() == *name)
-            .map(|(function, _)| function.clone())
+    pub(crate) fn resolve_function(&self, name: &String, given_scope: u128) -> Option<Function> {
+        match self.get_function_from_functions(name, given_scope) {
+            Some(function) => Some(function),
+            None => self.get_function_from_constants(name),
+        }
     }
 
     pub(crate) fn get_stdout(&mut self) -> Option<&mut Vec<String>> {
         self.stdout.as_mut()
+    }
+
+    fn get_function_from_functions(&self, name: &String, given_scope: u128) -> Option<Function> {
+        self.functions
+            .iter()
+            .rev()
+            .find(|(function, scope)| function.name() == *name && *scope <= given_scope)
+            .map(|(function, _)| function.clone())
+    }
+
+    fn get_function_from_constants(&self, name: &String) -> Option<Function> {
+        self.constants
+            .into_iter()
+            .filter(|value| match value {
+                Value::Function(_) => true,
+                _ => false,
+            })
+            .find(|function| {
+                let Value::Function(function) = function else {
+                    panic!();
+                };
+                function.name() == *name
+            })
+            .map(|function| {
+                let Value::Function(function) = function else {
+                    panic!();
+                };
+                return function.clone();
+            })
+    }
+
+    fn clear_scope_functions(&mut self, given_scope: u128) {
+        self.functions = self
+            .functions
+            .iter()
+            .filter(|(_, scope)| *scope != given_scope)
+            .map(|item| item.clone())
+            .collect();
     }
 
     fn get_constant(&self, address: usize) -> Option<&Value> {
@@ -449,10 +494,7 @@ mod test {
             vm.interpret(r#"println("Hello World!");"#.to_string()),
             InterpretResult::Ok
         );
-        assert_eq!(
-            vm.stdout.unwrap(),
-            vec!["Hello World!".to_string(), "\n".to_string()]
-        );
+        assert_eq!(vm.stdout.unwrap(), vec!["Hello World!", "\n"]);
     }
 
     #[test]
@@ -473,10 +515,7 @@ mod test {
             ),
             InterpretResult::RuntimeError
         );
-        assert_eq!(
-            vm.stdout.unwrap(),
-            vec!["global".to_string(), "local".to_string(), "\n".to_string()]
-        );
+        assert_eq!(vm.stdout.unwrap(), vec!["global", "local", "\n"]);
     }
 
     #[test]
@@ -502,19 +541,11 @@ mod test {
             ),
             InterpretResult::RuntimeError
         );
-        assert_eq!(
-            vm.stdout.unwrap(),
-            vec![
-                "global".to_string(),
-                "local1".to_string(),
-                "local2".to_string(),
-                "\n".to_string()
-            ]
-        );
+        assert_eq!(vm.stdout.unwrap(), vec!["global", "local1", "local2", "\n"]);
     }
 
     #[test]
-    fn add_function() {
+    fn simple_function() {
         let mut vm = new_for_test();
         assert_eq!(
             vm.interpret(
@@ -528,7 +559,25 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["5".to_string()]);
+        assert_eq!(vm.stdout.unwrap(), vec!["5"]);
+    }
+
+    #[test]
+    fn function_with_no_return() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun add(a, b) {
+                        println(a+b);
+                    }
+                    print(add(2, 3));
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout.unwrap(), vec!["5", "\n", "nil"]);
     }
 
     #[test]
@@ -549,10 +598,7 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(
-            vm.stdout.unwrap(),
-            vec!["inside".to_string(), "\n".to_string()]
-        );
+        assert_eq!(vm.stdout.unwrap(), vec!["inside", "\n"]);
     }
 
     #[test]
@@ -592,36 +638,7 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(
-            vm.stdout.unwrap(),
-            vec!["local".to_string(), "\n".to_string()]
-        );
-    }
-
-    #[test]
-    fn local_variable_outside() {
-        let mut vm = new_for_test();
-        assert_eq!(
-            vm.interpret(
-                r#"
-                    let x = "global";
-                    fun outer() {
-                        let x = "local";
-                        fun inner() {
-                            println(x);
-                        }
-                        inner();
-                    }
-                    outer();
-                "#
-                .to_string()
-            ),
-            InterpretResult::Ok
-        );
-        assert_eq!(
-            vm.stdout.unwrap(),
-            vec!["local".to_string(), "\n".to_string()]
-        );
+        assert_eq!(vm.stdout.unwrap(), vec!["local", "\n"]);
     }
 
     #[test]
@@ -643,14 +660,34 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(
-            vm.stdout.unwrap(),
-            vec!["U-235".to_string(), "\n".to_string()]
-        );
+        assert_eq!(vm.stdout.unwrap(), vec!["U-235", "\n"]);
     }
 
     #[test]
-    fn closure() {
+    fn closure_local() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    let x = "global";
+                    fun outer() {
+                        let x = "local";
+                        fun inner() {
+                            println(x);
+                        }
+                        inner();
+                    }
+                    outer();
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout.unwrap(), vec!["local", "\n"]);
+    }
+
+    #[test]
+    fn closure_parameter() {
         let mut vm = new_for_test();
         assert_eq!(
             vm.interpret(
@@ -668,9 +705,6 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(
-            vm.stdout.unwrap(),
-            vec!["U-235".to_string(), "\n".to_string()]
-        );
+        assert_eq!(vm.stdout.unwrap(), vec!["U-235", "\n"]);
     }
 }

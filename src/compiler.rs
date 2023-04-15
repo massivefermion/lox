@@ -289,7 +289,7 @@ impl<'a> Compiler<'a> {
 
                 let scope = self.scope_depth;
                 self.function().add_op(OpCode::ClearScope);
-                self.function().add_address(scope as usize);
+                self.add_constant(Value::Double(scope as f64));
 
                 if manage_scope {
                     self.scope_depth -= 1;
@@ -543,6 +543,7 @@ impl<'a> Compiler<'a> {
                         }
 
                         self.function().add_op(OpCode::Call);
+                        self.add_constant(Value::Double(self.scope_depth as f64));
                         self.add_constant(Value::Double(args.into()));
                         self.add_constant(token.value().unwrap());
                     }
@@ -559,7 +560,8 @@ impl<'a> Compiler<'a> {
                         }
 
                         _ => {
-                            let function = self.vm.resolve_function(&name).unwrap();
+                            let function =
+                                self.vm.resolve_function(&name, self.scope_depth).unwrap();
                             self.add_constant(Value::Function(function));
                         }
                     },
