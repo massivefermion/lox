@@ -1,5 +1,7 @@
 use std::iter::Peekable;
 
+use rand::{distributions::Alphanumeric, Rng};
+
 use crate::error::{ErrorContext, InterpretResult, LoxError};
 use crate::function::Function;
 use crate::nif::resolve_nif;
@@ -258,6 +260,11 @@ impl<'a> Compiler<'a> {
                 self.compile_if();
             }
 
+            Some(token) if token.kind() == Kind::While => {
+                self.scanner.next();
+                self.compile_while();
+            }
+
             Some(token) if token.kind() == Kind::LeftBrace => {
                 self.scanner.next();
                 if manage_scope {
@@ -342,6 +349,34 @@ impl<'a> Compiler<'a> {
             None => (),
         };
         self.function().patch_jump(else_jump_address);
+    }
+
+    // TODO needs closures for full functionality!
+    fn compile_while(&mut self) {
+        self.compile_expression();
+
+        let name: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(16)
+            .map(char::from)
+            .collect();
+
+        self.new_function(name.clone(), 0);
+        let jump_address = self.function().add_jump(true);
+
+        self.compile_statement(true);
+
+        self.function().add_op(OpCode::Loop);
+        self.add_constant(Value::String(name.clone()));
+
+        self.function().patch_jump(jump_address);
+        self.function().add_op(OpCode::Pop);
+
+        let function = self.functions.pop().unwrap();
+        self.vm.add_loop(function);
+
+        self.function().add_op(OpCode::Loop);
+        self.add_constant(Value::String(name));
     }
 
     fn compile_expression(&mut self) {

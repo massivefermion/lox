@@ -25,6 +25,7 @@ pub(crate) enum OpCode {
     Greater,
     LessEqual,
     Less,
+    Loop,
     Invalid,
     // Print,
     // NewLine,
@@ -39,7 +40,8 @@ impl OpCode {
             | Self::DefGlobal
             | Self::SetGlobal
             | Self::GetGlobal
-            | Self::ClearScope => 1,
+            | Self::ClearScope
+            | Self::Loop => 1,
             Self::Call => 3,
             _ => 0,
         }
@@ -74,6 +76,7 @@ impl From<u8> for OpCode {
             22 => Self::Greater,
             23 => Self::LessEqual,
             24 => Self::Less,
+            25 => Self::Loop,
             _ => Self::Invalid,
         }
     }
@@ -107,6 +110,7 @@ impl Into<u8> for OpCode {
             Self::Greater => 22,
             Self::LessEqual => 23,
             Self::Less => 24,
+            Self::Loop => 25,
             Self::Invalid => 255,
         }
     }

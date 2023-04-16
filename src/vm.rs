@@ -15,6 +15,7 @@ pub(crate) struct VM {
     constants: Chunk<Value>,
     globals: HashMap<String, Value>,
     functions: Vec<(Function, u128)>,
+    loops: HashMap<String, Function>,
     start_time: Instant,
     stdout: Option<Vec<String>>,
 }
@@ -26,6 +27,7 @@ impl VM {
             constants: Chunk::new(),
             globals: HashMap::new(),
             functions: vec![],
+            loops: HashMap::new(),
             start_time: Instant::now(),
             stdout: None,
         }
@@ -347,6 +349,33 @@ impl VM {
                     }
                 }
 
+                OpCode::Loop => {
+                    iterator.next();
+                    let Some(address) = iterator.next() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(Value::String(loop_name)) = self.get_constant(address as usize) else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    let Some(lp) = self.get_loop(&loop_name) else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    let mut substack = vec![];
+                    substack.push(self.stack_pop().unwrap());
+                    self.stack.push(substack);
+                    let name = lp.name().clone();
+
+                    match self.run(lp) {
+                        InterpretResult::Ok => {
+                            self.stack.pop();
+                            self.remove_loop(&name);
+                        }
+                        _ => return InterpretResult::RuntimeError,
+                    }
+                }
+
                 OpCode::Call => {
                     iterator.next();
                     let Some(address) = iterator.next() else {
@@ -435,6 +464,10 @@ impl VM {
 
     pub(crate) fn add_function(&mut self, scope_depth: u128, function: Function) {
         self.functions.push((function, scope_depth));
+    }
+
+    pub(crate) fn add_loop(&mut self, lp: Function) {
+        self.loops.insert(lp.name(), lp);
     }
 
     pub(crate) fn function_exists(&self, scope_depth: u128, name: &String) -> bool {
@@ -526,6 +559,14 @@ impl VM {
     fn get_constant(&self, address: usize) -> Option<&Value> {
         self.constants.get(address)
     }
+
+    fn get_loop(&self, name: &String) -> Option<Function> {
+        self.loops.get(name).map(|lp| lp.clone())
+    }
+
+    fn remove_loop(&mut self, name: &String) {
+        self.loops.remove(name);
+    }
 }
 
 #[cfg(test)]
@@ -542,6 +583,7 @@ mod test {
             constants: Chunk::new(),
             globals: HashMap::new(),
             functions: vec![],
+            loops: HashMap::new(),
             start_time: Instant::now(),
             stdout: Some(vec![]),
         }
