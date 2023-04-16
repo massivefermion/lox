@@ -37,13 +37,12 @@ pub(crate) enum Kind {
     Star,
 
     // One or two character tokens.
-    Bang,
     BangEqual,
     Concat,
     Equal,
     EqualEqual,
     Greater,
-    GreateEqual,
+    GreaterEqual,
     Less,
     LessEqual,
 

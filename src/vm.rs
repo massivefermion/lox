@@ -155,6 +155,66 @@ impl VM {
                     self.stack_push(Value::Double(left / right))
                 }
 
+                OpCode::EqualEqual => {
+                    let Some(right) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(left) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack_push(Value::Boolean(left == right));
+                }
+
+                OpCode::BangEqual => {
+                    let Some(right) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(left) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack_push(Value::Boolean(left != right));
+                }
+
+                OpCode::GreaterEqual => {
+                    let Some(right) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(left) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack_push(Value::Boolean(left >= right));
+                }
+
+                OpCode::Greater => {
+                    let Some(right) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(left) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack_push(Value::Boolean(left > right));
+                }
+
+                OpCode::LessEqual => {
+                    let Some(right) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(left) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack_push(Value::Boolean(left <= right));
+                }
+
+                OpCode::Less => {
+                    let Some(right) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(left) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack_push(Value::Boolean(left < right));
+                }
+
                 // OpCode::Print => {
                 //     let Some(value) = self.stack_pop() else {
                 //         return InterpretResult::RuntimeError;

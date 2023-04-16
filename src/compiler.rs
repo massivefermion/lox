@@ -413,6 +413,42 @@ impl<'a> Compiler<'a> {
                         self.function().patch_jump(jump_address);
                     }
 
+                    Kind::EqualEqual => {
+                        self.scanner.next();
+                        self.compile_factor(false);
+                        self.function().add_op(OpCode::EqualEqual);
+                    }
+
+                    Kind::BangEqual => {
+                        self.scanner.next();
+                        self.compile_factor(false);
+                        self.function().add_op(OpCode::BangEqual);
+                    }
+
+                    Kind::GreaterEqual => {
+                        self.scanner.next();
+                        self.compile_factor(false);
+                        self.function().add_op(OpCode::GreaterEqual);
+                    }
+
+                    Kind::Greater => {
+                        self.scanner.next();
+                        self.compile_factor(false);
+                        self.function().add_op(OpCode::Greater);
+                    }
+
+                    Kind::LessEqual => {
+                        self.scanner.next();
+                        self.compile_factor(false);
+                        self.function().add_op(OpCode::LessEqual);
+                    }
+
+                    Kind::Less => {
+                        self.scanner.next();
+                        self.compile_factor(false);
+                        self.function().add_op(OpCode::Less);
+                    }
+
                     _ => return,
                 },
 

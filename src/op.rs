@@ -19,6 +19,12 @@ pub(crate) enum OpCode {
     Concat,
     Call,
     ClearScope,
+    EqualEqual,
+    BangEqual,
+    GreaterEqual,
+    Greater,
+    LessEqual,
+    Less,
     Invalid,
     // Print,
     // NewLine,
@@ -62,6 +68,12 @@ impl From<u8> for OpCode {
             16 => Self::Concat,
             17 => Self::Call,
             18 => Self::ClearScope,
+            19 => Self::EqualEqual,
+            20 => Self::BangEqual,
+            21 => Self::GreaterEqual,
+            22 => Self::Greater,
+            23 => Self::LessEqual,
+            24 => Self::Less,
             _ => Self::Invalid,
         }
     }
@@ -89,6 +101,12 @@ impl Into<u8> for OpCode {
             Self::Concat => 16,
             Self::Call => 17,
             Self::ClearScope => 18,
+            Self::EqualEqual => 19,
+            Self::BangEqual => 20,
+            Self::GreaterEqual => 21,
+            Self::Greater => 22,
+            Self::LessEqual => 23,
+            Self::Less => 24,
             Self::Invalid => 255,
         }
     }

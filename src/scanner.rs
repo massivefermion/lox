@@ -71,11 +71,16 @@ impl Iterator for Scanner<'_> {
                     self.source.next();
                     self.new_token(Kind::BangEqual, self.cursor, 2)
                 }
-                Some(_) => self.new_token(Kind::Bang, self.cursor, 1),
                 None => Some(Token::new(
                     Kind::Error,
                     self.cursor,
                     Some(Value::from("Unexpected end of script")),
+                )),
+
+                Some(character) => Some(Token::new(
+                    Kind::Error,
+                    self.cursor,
+                    Some(Value::String(format!("Unexpected character {}", character))),
                 )),
             },
 
@@ -112,7 +117,7 @@ impl Iterator for Scanner<'_> {
             Some('>') => match self.source.peek() {
                 Some('=') => {
                     self.source.next();
-                    self.new_token(Kind::GreateEqual, self.cursor, 2)
+                    self.new_token(Kind::GreaterEqual, self.cursor, 2)
                 }
                 Some(_) => self.new_token(Kind::Greater, self.cursor, 1),
                 None => Some(Token::new(
