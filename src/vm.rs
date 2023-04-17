@@ -318,7 +318,7 @@ impl VM {
                 }
 
                 OpCode::JumpIfFalse => {
-                    let Some(value) = self.stack_pop() else {
+                    let Some(value) = self.stack_peek() else {
                         return InterpretResult::RuntimeError;
                     };
 
@@ -826,16 +826,34 @@ mod test {
         assert_eq!(
             vm.interpret(
                 r#"
-                let a = 4;
-                while a {
-                    print(a);
-                    a = a - 1;
-                }
-            "#
+                    let a = 4;
+                    while a {
+                        print(a);
+                        a = a - 1;
+                    }
+                "#
                 .to_string()
             ),
             InterpretResult::Ok
         );
         assert_eq!(vm.stdout.unwrap(), vec!["4", "3", "2", "1"]);
+    }
+
+    #[test]
+    fn parse_test() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    print(parse("2" <> "5") + 5);
+                    print(parse("2" <> ".5") + 1.5);
+                    print(parse("2" <> ".5") + 2);
+                    print(parse("false") and true);
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout.unwrap(), vec!["30", "4", "4.5", "false"]);
     }
 }
