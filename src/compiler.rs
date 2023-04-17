@@ -314,7 +314,6 @@ impl<'a> Compiler<'a> {
             _ => {
                 self.compile_expression();
                 self.expect(Kind::Semicolon);
-                self.function().add_op(OpCode::Pop);
             }
         }
     }
@@ -368,9 +367,7 @@ impl<'a> Compiler<'a> {
 
         self.function().add_op(OpCode::Loop);
         self.add_constant(Value::String(name.clone()));
-
         self.function().patch_jump(jump_address);
-        self.function().add_op(OpCode::Pop);
 
         let function = self.functions.pop().unwrap();
         self.vm.add_loop(function);
@@ -411,7 +408,7 @@ impl<'a> Compiler<'a> {
                         self.function().patch_jump(end_jump_address);
                     }
 
-                    _ => return,
+                    _ => break,
                 },
 
                 None => self.errors.push(LoxError::new(
@@ -484,7 +481,7 @@ impl<'a> Compiler<'a> {
                         self.function().add_op(OpCode::Less);
                     }
 
-                    _ => return,
+                    _ => break,
                 },
 
                 None => self.errors.push(LoxError::new(
@@ -543,7 +540,6 @@ impl<'a> Compiler<'a> {
                 let address = self.resolve_local(name.clone());
                 match self.scanner.peek() {
                     Some(token) if token.kind() == Kind::Equal && can_assign => {
-                        let token = token.clone();
                         self.scanner.next();
                         self.compile_expression();
                         match address {
@@ -553,7 +549,7 @@ impl<'a> Compiler<'a> {
                             }
                             None => {
                                 self.function().add_op(OpCode::SetGlobal);
-                                self.add_constant(token.value().unwrap());
+                                self.add_constant(Value::String(name));
                             }
                         }
                     }

@@ -59,7 +59,11 @@ impl VM {
 
             if debug {
                 println!("\n{} OpCode\n{:?}", function, op_code);
-                println!("\n{} Stack\n{:#?}\n", function, self.stack);
+                println!("\n{}", self.stack.len());
+                if self.stack.len() > 1 {
+                    println!("{:#?}", self.stack.get(self.stack.len() - 2));
+                }
+                println!("{:#?}", self.stack.last());
             }
 
             match op_code {
@@ -243,7 +247,7 @@ impl VM {
 
                 OpCode::DefGlobal => {
                     iterator.next();
-                    let Some( address) = iterator.next() else {
+                    let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
                     let Some(Value::String(variable_name)) = self.get_constant(address) else {
@@ -280,7 +284,7 @@ impl VM {
 
                 OpCode::GetGlobal => {
                     iterator.next();
-                    let Some( address) = iterator.next() else {
+                    let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
                     let Some(Value::String(variable_name)) = self.get_constant(address) else {
@@ -293,7 +297,7 @@ impl VM {
                 }
 
                 OpCode::SetLocal => {
-                    let Some( address) = iterator.next() else {
+                    let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
                     let Some(value) = self.stack_peek() else {
@@ -314,21 +318,16 @@ impl VM {
                 }
 
                 OpCode::JumpIfFalse => {
-                    let Some(value) = self.stack_peek() else {
+                    let Some(value) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
 
-                    let is_falsey = match value {
-                        Value::String(value) if value.is_empty() => true,
-                        Value::Double(value) if value == 0.0 => true,
-                        Value::Boolean(value) => !value,
-                        Value::Double(_) => false,
-                        Value::String(_) => false,
-                        Value::Nil => true,
-                        _ => return InterpretResult::RuntimeError,
+                    let is_falsey = match self.is_falsey(&value) {
+                        Some(result) => result,
+                        None => return InterpretResult::RuntimeError,
                     };
 
-                    let Some( size) = iterator.next() else {
+                    let Some(size) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
 
@@ -340,7 +339,7 @@ impl VM {
                 }
 
                 OpCode::Jump => {
-                    let  Some( size) = iterator.next() else {
+                    let  Some(size) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
 
@@ -567,6 +566,18 @@ impl VM {
     fn remove_loop(&mut self, name: &String) {
         self.loops.remove(name);
     }
+
+    fn is_falsey(&self, value: &Value) -> Option<bool> {
+        match value {
+            Value::String(value) if value.is_empty() => Some(true),
+            Value::Double(value) if *value == 0.0 => Some(true),
+            Value::Boolean(value) => Some(!value),
+            Value::Double(_) => Some(false),
+            Value::String(_) => Some(false),
+            Value::Nil => Some(true),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -631,8 +642,7 @@ mod test {
                         let b = "local1";
                         {
                             let c = "local2";
-                            print(a);
-                            print(b);
+                            print(a, b);
                             println(c);
                         }
                         print(c);
