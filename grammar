@@ -1,16 +1,16 @@
 program                     ->      declaration* EOF
 
-declaration                 ->      class | function_declaration | variable_declaration | statement
+declaration                 ->      class | function | variable | statement
 class                       ->      "class" IDENTIFIER ( "expands" IDENTIFIER )? "{" 
                                         ( ( "pub"? IDENTIFIER ( "=" expression )? ";" )* )?
                                         ( ( "pub"? function )* )? 
                                     "}"
-function                    ->      "fun" function
-variable_declaration        ->      "let" IDENTIFIER ( "=" expression )? ";"
+function                    ->      "fun" IDENTIFIER "(" parameters? ")" block
+variable                    ->      "let" IDENTIFIER ( "=" expression )? ";"
 
 statement                   ->      expression_statement | for | if | print | return | while | block
 expression_statement        ->      expression ";"
-for                         ->      "for" ( variable_declaration | expression_statement )? ";" expression? ";" expression? statement
+for                         ->      "for" ( variable | expression_statement )? ";" expression? ";" expression? statement
 if                          ->      "if" expression statement ( "else" statement )?
 print                       ->      "print" expression ";"
 return                      ->      "return" expression? ";"
@@ -29,7 +29,6 @@ unary                       ->      ( "not" | "-" ) unary | call
 call                        ->      primary ( "(" arguments? ")" | "." IDENTIFIER )*
 primary                     ->      "true" | "false" | "nil" | "this" | NUMBER | STRING | IDENTIFIER | "(" expression ")" | "super" "." IDENTIFIER
 
-function                    ->      IDENTIFIER "(" parameters? ")" block
 parameters                  ->      IDENTIFIER ( "," IDENTIFIER )*
 arguments                   ->      expression ( "," expression )*
 
