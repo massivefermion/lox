@@ -819,4 +819,23 @@ mod test {
         );
         assert_eq!(vm.stdout.unwrap(), vec!["U-235", "\n"]);
     }
+
+    #[test]
+    fn global_while() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                let a = 4;
+                while a {
+                    print(a);
+                    a = a - 1;
+                }
+            "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout.unwrap(), vec!["4", "3", "2", "1"]);
+    }
 }
