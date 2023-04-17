@@ -1,47 +1,75 @@
-use std::time::{Instant, SystemTime};
+use std::time::Instant;
 
 use crate::value::Value;
 use crate::vm::VM;
 
-pub(crate) trait Nif {
+pub(crate) trait NIF {
     fn arity(&self) -> Option<u128>;
     fn name(&self) -> String;
     fn call(&self, vm: &mut VM, args_count: usize);
 }
 
-pub(crate) fn resolve_nif(name: &String) -> Option<Box<dyn Nif>> {
+pub(crate) fn resolve_nif(name: &String) -> Option<Box<dyn NIF>> {
     match name.as_str() {
-        "now" => Some(Box::new(Now)),
+        "clock" => Some(Box::new(Clock)),
+        "parse" => Some(Box::new(Parse)),
         "print" => Some(Box::new(Print)),
-        "vm_now" => Some(Box::new(VMNow)),
         "println" => Some(Box::new(PrintLn)),
         _ => None,
     }
 }
 
-pub(crate) struct Now;
-pub(crate) struct VMNow;
+pub(crate) struct Clock;
+pub(crate) struct Parse;
 pub(crate) struct Print;
 pub(crate) struct PrintLn;
 
-impl Nif for Now {
+impl NIF for Clock {
     fn arity(&self) -> Option<u128> {
         Some(0)
     }
 
     fn name(&self) -> String {
-        "now".into()
+        "clock".into()
     }
 
     fn call(&self, vm: &mut VM, _args_count: usize) {
-        let now = SystemTime::now();
-        let elapsed = now.duration_since(SystemTime::UNIX_EPOCH).unwrap();
+        let start_time = vm.start_time();
+        let now = Instant::now();
+        let elapsed = now.duration_since(start_time);
         let elapsed = elapsed.as_nanos();
         vm.stack_push(Value::Double(elapsed as f64));
     }
 }
 
-impl Nif for Print {
+impl NIF for Parse {
+    fn arity(&self) -> Option<u128> {
+        Some(1)
+    }
+
+    fn name(&self) -> String {
+        "parse".to_string()
+    }
+
+    fn call(&self, vm: &mut VM, _args_count: usize) {
+        let arg = vm.stack_pop().unwrap();
+
+        let result = match arg {
+            Value::Nil => Value::Nil,
+            Value::String(value) if value.as_str() == "true" => Value::Boolean(true),
+            Value::String(value) if value.as_str() == "false" => Value::Boolean(false),
+            Value::String(value) if value.parse::<f64>().is_ok() => {
+                Value::Double(value.parse::<f64>().unwrap())
+            }
+            Value::Function(value) => Value::String(value.to_string()),
+            value => value,
+        };
+
+        vm.stack_push(result);
+    }
+}
+
+impl NIF for Print {
     fn arity(&self) -> Option<u128> {
         None
     }
@@ -78,12 +106,10 @@ impl Nif for Print {
                     .for_each(|item| print!("{}", item));
             }
         };
-
-        args.iter().for_each(|value| vm.stack_push(value.clone()));
     }
 }
 
-impl Nif for PrintLn {
+impl NIF for PrintLn {
     fn arity(&self) -> Option<u128> {
         None
     }
@@ -103,23 +129,5 @@ impl Nif for PrintLn {
                 println!();
             }
         };
-    }
-}
-
-impl Nif for VMNow {
-    fn arity(&self) -> Option<u128> {
-        Some(0)
-    }
-
-    fn name(&self) -> String {
-        "vm_now".into()
-    }
-
-    fn call(&self, vm: &mut VM, _args_count: usize) {
-        let start_time = vm.start_time();
-        let now = Instant::now();
-        let elapsed = now.duration_since(start_time);
-        let elapsed = elapsed.as_nanos();
-        vm.stack_push(Value::Double(elapsed as f64));
     }
 }
