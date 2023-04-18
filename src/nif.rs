@@ -4,8 +4,8 @@ use crate::value::Value;
 use crate::vm::VM;
 
 pub(crate) trait NIF {
-    fn arity(&self) -> Option<u128>;
     fn name(&self) -> String;
+    fn arity(&self) -> Option<u128>;
     fn call(&self, vm: &mut VM, args_count: usize);
 }
 
@@ -27,12 +27,12 @@ struct TypeOf;
 struct PrintLn;
 
 impl NIF for Clock {
-    fn arity(&self) -> Option<u128> {
-        Some(0)
-    }
-
     fn name(&self) -> String {
         "clock".into()
+    }
+
+    fn arity(&self) -> Option<u128> {
+        Some(0)
     }
 
     fn call(&self, vm: &mut VM, _args_count: usize) {
@@ -45,12 +45,12 @@ impl NIF for Clock {
 }
 
 impl NIF for Parse {
-    fn arity(&self) -> Option<u128> {
-        Some(1)
-    }
-
     fn name(&self) -> String {
         "parse".to_string()
+    }
+
+    fn arity(&self) -> Option<u128> {
+        Some(1)
     }
 
     fn call(&self, vm: &mut VM, _args_count: usize) {
@@ -70,12 +70,12 @@ impl NIF for Parse {
 }
 
 impl NIF for Print {
-    fn arity(&self) -> Option<u128> {
-        None
-    }
-
     fn name(&self) -> String {
         "print".into()
+    }
+
+    fn arity(&self) -> Option<u128> {
+        None
     }
 
     fn call(&self, vm: &mut VM, args_count: usize) {
@@ -110,12 +110,12 @@ impl NIF for Print {
 }
 
 impl NIF for TypeOf {
-    fn arity(&self) -> Option<u128> {
-        Some(1)
-    }
-
     fn name(&self) -> String {
         "type_of".into()
+    }
+
+    fn arity(&self) -> Option<u128> {
+        Some(1)
     }
 
     fn call(&self, vm: &mut VM, _args_count: usize) {
@@ -134,12 +134,12 @@ impl NIF for TypeOf {
 }
 
 impl NIF for PrintLn {
-    fn arity(&self) -> Option<u128> {
-        None
-    }
-
     fn name(&self) -> String {
         "println".into()
+    }
+
+    fn arity(&self) -> Option<u128> {
+        None
     }
 
     fn call(&self, vm: &mut VM, args_count: usize) {
