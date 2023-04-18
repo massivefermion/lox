@@ -49,10 +49,6 @@ impl VM {
             false
         };
 
-        if debug {
-            println!("{} => Constants\n{:?}\n", function, self.constants);
-        }
-
         let mut iterator = function.into_iter().peekable();
         while let Some(current) = iterator.next() {
             let op_code = OpCode::from(current as u8);
@@ -161,7 +157,7 @@ impl VM {
                     self.stack_push(Value::Double(left / right))
                 }
 
-                OpCode::EqualEqual => {
+                OpCode::Equal => {
                     let Some(right) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
@@ -171,7 +167,7 @@ impl VM {
                     self.stack_push(Value::Boolean(left == right));
                 }
 
-                OpCode::BangEqual => {
+                OpCode::NotEqual => {
                     let Some(right) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };

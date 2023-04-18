@@ -448,13 +448,13 @@ impl<'a> Compiler<'a> {
                     Kind::EqualEqual => {
                         self.scanner.next();
                         self.compile_factor(false);
-                        self.function().add_op(OpCode::EqualEqual);
+                        self.function().add_op(OpCode::Equal);
                     }
 
                     Kind::BangEqual => {
                         self.scanner.next();
                         self.compile_factor(false);
-                        self.function().add_op(OpCode::BangEqual);
+                        self.function().add_op(OpCode::NotEqual);
                     }
 
                     Kind::GreaterEqual => {

@@ -14,15 +14,17 @@ pub(crate) fn resolve_nif(name: &String) -> Option<Box<dyn NIF>> {
         "clock" => Some(Box::new(Clock)),
         "parse" => Some(Box::new(Parse)),
         "print" => Some(Box::new(Print)),
+        "type_of" => Some(Box::new(TypeOf)),
         "println" => Some(Box::new(PrintLn)),
         _ => None,
     }
 }
 
-pub(crate) struct Clock;
-pub(crate) struct Parse;
-pub(crate) struct Print;
-pub(crate) struct PrintLn;
+struct Clock;
+struct Parse;
+struct Print;
+struct TypeOf;
+struct PrintLn;
 
 impl NIF for Clock {
     fn arity(&self) -> Option<u128> {
@@ -55,13 +57,11 @@ impl NIF for Parse {
         let arg = vm.stack_pop().unwrap();
 
         let result = match arg {
-            Value::Nil => Value::Nil,
             Value::String(value) if value.as_str() == "true" => Value::Boolean(true),
             Value::String(value) if value.as_str() == "false" => Value::Boolean(false),
             Value::String(value) if value.parse::<f64>().is_ok() => {
                 Value::Double(value.parse::<f64>().unwrap())
             }
-            Value::Function(value) => Value::String(value.to_string()),
             value => value,
         };
 
@@ -106,6 +106,30 @@ impl NIF for Print {
                     .for_each(|item| print!("{}", item));
             }
         };
+    }
+}
+
+impl NIF for TypeOf {
+    fn arity(&self) -> Option<u128> {
+        Some(1)
+    }
+
+    fn name(&self) -> String {
+        "type_of".into()
+    }
+
+    fn call(&self, vm: &mut VM, _args_count: usize) {
+        let arg = vm.stack_pop().unwrap();
+
+        let value_type = match arg {
+            Value::Nil => "nil",
+            Value::String(_) => "string",
+            Value::Double(_) => "number",
+            Value::Boolean(_) => "boolean",
+            Value::Function(_) => "function",
+        };
+
+        vm.stack_push(Value::String(value_type.into()));
     }
 }
 
