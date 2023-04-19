@@ -5,7 +5,7 @@ use crate::function::Function;
 #[derive(Debug, Clone)]
 pub(crate) enum Value {
     Nil,
-    Double(f64),
+    Number(f64),
     Boolean(bool),
     String(String),
     Function(Function),
@@ -14,7 +14,7 @@ pub(crate) enum Value {
 #[derive(PartialEq)]
 enum Type {
     Nil,
-    Double,
+    Number,
     String,
     Boolean,
     Function,
@@ -24,7 +24,7 @@ impl Value {
     fn get_type(&self) -> Type {
         match self {
             Self::Nil => Type::Nil,
-            Self::Double(_) => Type::Double,
+            Self::Number(_) => Type::Number,
             Self::String(_) => Type::String,
             Self::Boolean(_) => Type::Boolean,
             Self::Function(_) => Type::Function,
@@ -39,7 +39,16 @@ impl Value {
 impl Into<f64> for Value {
     fn into(self) -> f64 {
         match self {
-            Self::Double(value) => value,
+            Self::Number(value) => value,
+            _ => panic!("value is not a number"),
+        }
+    }
+}
+
+impl Into<i128> for Value {
+    fn into(self) -> i128 {
+        match self {
+            Self::Number(value) => value as i128,
             _ => panic!("value is not a number"),
         }
     }
@@ -52,7 +61,7 @@ impl Into<String> for Value {
             Self::String(value) => value,
             Self::Boolean(true) => "true".to_string(),
             Self::Boolean(false) => "false".to_string(),
-            Self::Double(value) => value.to_string(),
+            Self::Number(value) => value.to_string(),
             Self::Function(value) => value.to_string(),
         }
     }
@@ -98,7 +107,7 @@ impl PartialOrd for Value {
                     _ => match (self, other) {
                         (Self::Function(_), Self::Function(_)) => None,
                         (Self::String(v1), Self::String(v2)) => v1.partial_cmp(v2),
-                        (Self::Double(v1), Self::Double(v2)) => v1.partial_cmp(v2),
+                        (Self::Number(v1), Self::Number(v2)) => v1.partial_cmp(v2),
                         (Self::Boolean(v1), Self::Boolean(v2)) => v1.partial_cmp(v2),
                         _ => None,
                     },
@@ -106,12 +115,12 @@ impl PartialOrd for Value {
                 false => match (self_type, other_type) {
                     (Type::Nil, _) => Some(Ordering::Less),
                     (_, Type::Nil) => Some(Ordering::Greater),
-                    (Type::Function, _) => Some(Ordering::Greater),
                     (_, Type::Function) => Some(Ordering::Less),
-                    (Type::String, _) => Some(Ordering::Greater),
+                    (Type::Function, _) => Some(Ordering::Greater),
                     (_, Type::String) => Some(Ordering::Less),
-                    (Type::Double, _) => Some(Ordering::Greater),
-                    (_, Type::Double) => Some(Ordering::Less),
+                    (Type::String, _) => Some(Ordering::Greater),
+                    (_, Type::Number) => Some(Ordering::Less),
+                    (Type::Number, _) => Some(Ordering::Greater),
                     _ => None,
                 },
             },

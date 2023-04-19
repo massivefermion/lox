@@ -26,6 +26,7 @@ pub(crate) enum OpCode {
     LessEqual,
     Less,
     Loop,
+    Rem,
     Invalid,
     // Print,
     // NewLine,
@@ -77,6 +78,7 @@ impl From<u8> for OpCode {
             23 => Self::LessEqual,
             24 => Self::Less,
             25 => Self::Loop,
+            26 => Self::Rem,
             _ => Self::Invalid,
         }
     }
@@ -111,6 +113,7 @@ impl Into<u8> for OpCode {
             Self::LessEqual => 23,
             Self::Less => 24,
             Self::Loop => 25,
+            Self::Rem => 26,
             Self::Invalid => 255,
         }
     }

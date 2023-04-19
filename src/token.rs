@@ -35,6 +35,7 @@ pub(crate) enum Kind {
     Semicolon,
     Slash,
     Star,
+    Percent,
 
     // One or two character tokens.
     BangEqual,

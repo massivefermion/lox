@@ -63,6 +63,7 @@ impl Iterator for Scanner<'_> {
             Some('+') => self.new_token(Kind::Plus, self.cursor, 1),
             Some('-') => self.new_token(Kind::Minus, self.cursor, 1),
             Some('*') => self.new_token(Kind::Star, self.cursor, 1),
+            Some('%') => self.new_token(Kind::Percent, self.cursor, 1),
             Some('{') => self.new_token(Kind::LeftBrace, self.cursor, 1),
             Some('}') => self.new_token(Kind::RightBrace, self.cursor, 1),
 
@@ -189,7 +190,7 @@ impl Iterator for Scanner<'_> {
                 let token = Token::new(
                     Kind::Number,
                     self.token_start.unwrap(),
-                    Some(Value::Double(self.storage.parse().unwrap())),
+                    Some(Value::Number(self.storage.parse().unwrap())),
                 );
                 self.storage = String::new();
                 self.token_start = None;

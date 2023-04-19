@@ -84,10 +84,10 @@ impl VM {
                 }
 
                 OpCode::Negate => {
-                    let Some(Value::Double(value)) = self.stack_pop() else {
+                    let Some(Value::Number(value)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
-                    self.stack_push(Value::Double(-value));
+                    self.stack_push(Value::Number(-value));
                 }
 
                 OpCode::Not => {
@@ -99,10 +99,10 @@ impl VM {
                         Value::Nil => self.stack_push(Value::Boolean(true)),
                         Value::Boolean(value) => self.stack_push(Value::Boolean(!value)),
 
-                        Value::Double(value) if value == 0.0 => {
+                        Value::Number(value) if value == 0.0 => {
                             self.stack_push(Value::Boolean(true))
                         }
-                        Value::Double(_) => self.stack_push(Value::Boolean(false)),
+                        Value::Number(_) => self.stack_push(Value::Boolean(false)),
 
                         Value::String(value) if value.is_empty() => {
                             self.stack_push(Value::Boolean(true))
@@ -127,34 +127,44 @@ impl VM {
                 }
 
                 OpCode::Add => {
-                    let Some(Value::Double(right)) = self.stack_pop() else {
+                    let Some(Value::Number(right)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some(Value::Double(left)) = self.stack_pop() else {
+                    let Some(Value::Number(left)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
 
-                    self.stack_push(Value::Double(left + right))
+                    self.stack_push(Value::Number(left + right))
                 }
 
                 OpCode::Multiply => {
-                    let Some(Value::Double(right)) = self.stack_pop() else {
+                    let Some(Value::Number(right)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some(Value::Double(left)) = self.stack_pop() else {
+                    let Some(Value::Number(left)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
-                    self.stack_push(Value::Double(left * right))
+                    self.stack_push(Value::Number(left * right))
+                }
+
+                OpCode::Rem => {
+                    let Some(Value::Number(right)) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(Value::Number(left)) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack_push(Value::Number(left % right))
                 }
 
                 OpCode::Divide => {
-                    let Some(Value::Double(right)) = self.stack_pop() else {
+                    let Some(Value::Number(right)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some(Value::Double(left)) = self.stack_pop() else {
+                    let Some(Value::Number(left)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
-                    self.stack_push(Value::Double(left / right))
+                    self.stack_push(Value::Number(left / right))
                 }
 
                 OpCode::Equal => {
@@ -376,7 +386,7 @@ impl VM {
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some(Value::Double(scope)) = self.get_constant(address as usize) else {
+                    let Some(Value::Number(scope)) = self.get_constant(address as usize) else {
                         return InterpretResult::RuntimeError;
                     };
                     let scope = *scope as u128;
@@ -385,7 +395,7 @@ impl VM {
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some(Value::Double(args)) = self.get_constant(address as usize) else {
+                    let Some(Value::Number(args)) = self.get_constant(address as usize) else {
                         return InterpretResult::RuntimeError;
                     };
                     let args = *args as u128;
@@ -407,7 +417,10 @@ impl VM {
                                 return InterpretResult::RuntimeError;
                             }
 
-                            nif.call(self, args as usize);
+                            match nif.call(self, args as usize) {
+                                Ok(()) => (),
+                                _ => return InterpretResult::RuntimeError,
+                            }
                         }
 
                         None => {
@@ -439,7 +452,7 @@ impl VM {
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some(Value::Double(scope)) = self.get_constant(address as usize) else {
+                    let Some(Value::Number(scope)) = self.get_constant(address as usize) else {
                         return InterpretResult::RuntimeError;
                     };
                     let scope = *scope as u128;
@@ -566,9 +579,9 @@ impl VM {
     fn is_falsey(&self, value: &Value) -> Option<bool> {
         match value {
             Value::String(value) if value.is_empty() => Some(true),
-            Value::Double(value) if *value == 0.0 => Some(true),
+            Value::Number(value) if *value == 0.0 => Some(true),
             Value::Boolean(value) => Some(!value),
-            Value::Double(_) => Some(false),
+            Value::Number(_) => Some(false),
             Value::String(_) => Some(false),
             Value::Nil => Some(true),
             _ => None,

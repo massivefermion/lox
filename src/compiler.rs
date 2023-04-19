@@ -296,7 +296,7 @@ impl<'a> Compiler<'a> {
 
                 let scope = self.scope_depth;
                 self.function().add_op(OpCode::ClearScope);
-                self.add_constant(Value::Double(scope as f64));
+                self.add_constant(Value::Number(scope as f64));
 
                 if manage_scope {
                     self.scope_depth -= 1;
@@ -435,6 +435,12 @@ impl<'a> Compiler<'a> {
                         self.scanner.next();
                         self.compile_factor(false);
                         self.function().add_op(OpCode::Divide);
+                    }
+
+                    Kind::Percent => {
+                        self.scanner.next();
+                        self.compile_factor(false);
+                        self.function().add_op(OpCode::Rem);
                     }
 
                     Kind::And => {
@@ -610,8 +616,8 @@ impl<'a> Compiler<'a> {
                         }
 
                         self.function().add_op(OpCode::Call);
-                        self.add_constant(Value::Double(self.scope_depth as f64));
-                        self.add_constant(Value::Double(args.into()));
+                        self.add_constant(Value::Number(self.scope_depth as f64));
+                        self.add_constant(Value::Number(args.into()));
                         self.add_constant(token.value().unwrap());
                     }
 
