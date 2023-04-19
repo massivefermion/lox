@@ -830,7 +830,7 @@ mod test {
     }
 
     #[test]
-    fn global_while() {
+    fn simple_global_while() {
         let mut vm = new_for_test();
         assert_eq!(
             vm.interpret(
