@@ -41,13 +41,13 @@ fn repl(vm: &mut vm::VM) -> Result<InterpretResult, InterpretResult> {
                 match line {
                     Ok(mut line) => {
                         let mut result = Ok(());
-                        if line.ends_with("{") {
+                        if line.ends_with('{') {
                             result = loop {
                                 let new_line = rl.readline("......  ");
                                 match new_line {
                                     Ok(new_line) => {
                                         line += &new_line;
-                                        if line.ends_with("}") {
+                                        if line.ends_with('}') {
                                             break Ok(());
                                         }
                                     }
@@ -78,7 +78,7 @@ fn repl(vm: &mut vm::VM) -> Result<InterpretResult, InterpretResult> {
                     _ => break Err(InterpretResult::CliError),
                 }
             };
-            return result;
+            result
         }
         Err(_) => Err(InterpretResult::CliError),
     }

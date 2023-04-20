@@ -80,36 +80,36 @@ impl From<u8> for OpCode {
     }
 }
 
-impl Into<u8> for OpCode {
-    fn into(self) -> u8 {
-        match self {
-            Self::Add => 0,
-            Self::Nil => 1,
-            Self::Not => 2,
-            Self::Pop => 3,
-            Self::Rem => 4,
-            Self::Call => 5,
-            Self::Jump => 6,
-            Self::Less => 7,
-            Self::Loop => 8,
-            Self::Equal => 9,
-            Self::Concat => 10,
-            Self::Divide => 11,
-            Self::GetVar => 12,
-            Self::Negate => 13,
-            Self::Return => 14,
-            Self::Greater => 15,
-            Self::Constant => 16,
-            Self::Multiply => 17,
-            Self::NotEqual => 18,
-            Self::SetLocal => 19,
-            Self::DefGlobal => 20,
-            Self::LessEqual => 21,
-            Self::SetGlobal => 22,
-            Self::ClearScope => 23,
-            Self::JumpIfFalse => 24,
-            Self::GreaterEqual => 25,
-            Self::Invalid => 255,
+impl From<OpCode> for u8 {
+    fn from(val: OpCode) -> Self {
+        match val {
+            OpCode::Add => 0,
+            OpCode::Nil => 1,
+            OpCode::Not => 2,
+            OpCode::Pop => 3,
+            OpCode::Rem => 4,
+            OpCode::Call => 5,
+            OpCode::Jump => 6,
+            OpCode::Less => 7,
+            OpCode::Loop => 8,
+            OpCode::Equal => 9,
+            OpCode::Concat => 10,
+            OpCode::Divide => 11,
+            OpCode::GetVar => 12,
+            OpCode::Negate => 13,
+            OpCode::Return => 14,
+            OpCode::Greater => 15,
+            OpCode::Constant => 16,
+            OpCode::Multiply => 17,
+            OpCode::NotEqual => 18,
+            OpCode::SetLocal => 19,
+            OpCode::DefGlobal => 20,
+            OpCode::LessEqual => 21,
+            OpCode::SetGlobal => 22,
+            OpCode::ClearScope => 23,
+            OpCode::JumpIfFalse => 24,
+            OpCode::GreaterEqual => 25,
+            OpCode::Invalid => 255,
         }
     }
 }

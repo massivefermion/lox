@@ -86,7 +86,7 @@ impl<'a> Iterator for FunctionIterator<'a> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iterator.next().map(|item| *item)
+        self.iterator.next().copied()
     }
 }
 

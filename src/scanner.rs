@@ -165,7 +165,7 @@ impl Iterator for Scanner<'_> {
                 );
                 self.storage = String::new();
                 self.token_start = None;
-                return Some(token);
+                Some(token)
             }
 
             Some(character) if character.is_numeric() => {
@@ -194,7 +194,7 @@ impl Iterator for Scanner<'_> {
                 );
                 self.storage = String::new();
                 self.token_start = None;
-                return Some(token);
+                Some(token)
             }
 
             Some(character) if character.is_alphabetic() || character == '_' => {
@@ -233,7 +233,7 @@ impl Iterator for Scanner<'_> {
 
                 self.storage = String::new();
                 self.token_start = None;
-                return Some(token);
+                Some(token)
             }
 
             Some(character) => Some(Token::new(

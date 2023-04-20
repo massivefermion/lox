@@ -69,6 +69,6 @@ impl<'a, T> Iterator for ChunkIterator<'a, T> {
             self.index += 1;
             return item;
         }
-        return None;
+        None
     }
 }

@@ -114,7 +114,7 @@ impl<'a> Compiler<'a> {
                     _ => {
                         let variable_name: String = variable_name.into();
 
-                        if variable_name != "_".to_string() {
+                        if variable_name != *"_" {
                             match self.locals.iter().find(|(name, scope)| {
                                 *name == variable_name && *scope == self.scope_depth
                             }) {
@@ -125,7 +125,7 @@ impl<'a> Compiler<'a> {
                                     None,
                                 )),
                                 None => {
-                                    self.locals.push((variable_name.into(), self.scope_depth));
+                                    self.locals.push((variable_name, self.scope_depth));
                                 }
                             }
                         }
@@ -172,7 +172,7 @@ impl<'a> Compiler<'a> {
                         Some(token) if token.kind() == Kind::Identifier => {
                             arity += 1;
                             let variable_name: String = token.value().unwrap().into();
-                            self.locals.push((variable_name.into(), self.scope_depth));
+                            self.locals.push((variable_name, self.scope_depth));
 
                             match self.scanner.peek() {
                                 Some(token) if token.kind() == Kind::Comma => {
@@ -217,7 +217,7 @@ impl<'a> Compiler<'a> {
                     }
                 }
 
-                self.new_function(function_name.into(), arity);
+                self.new_function(function_name, arity);
                 self.compile_statement(false);
                 match self.function().has_return() {
                     Some(false) => {
@@ -283,7 +283,7 @@ impl<'a> Compiler<'a> {
                     .locals
                     .iter()
                     .filter(|(_, scope)| *scope != self.scope_depth)
-                    .map(|item| item.clone())
+                    .cloned()
                     .collect();
 
                 let scope = self.scope_depth;

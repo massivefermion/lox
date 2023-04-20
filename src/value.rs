@@ -54,15 +54,15 @@ impl Into<i128> for Value {
     }
 }
 
-impl Into<String> for Value {
-    fn into(self) -> String {
-        match self {
-            Self::Nil => "nil".to_string(),
-            Self::String(value) => value,
-            Self::Boolean(true) => "true".to_string(),
-            Self::Boolean(false) => "false".to_string(),
-            Self::Number(value) => value.to_string(),
-            Self::Function(value) => value.to_string(),
+impl From<Value> for String {
+    fn from(val: Value) -> Self {
+        match val {
+            Value::Nil => "nil".to_string(),
+            Value::String(value) => value,
+            Value::Boolean(true) => "true".to_string(),
+            Value::Boolean(false) => "false".to_string(),
+            Value::Number(value) => value.to_string(),
+            Value::Function(value) => value.to_string(),
         }
     }
 }

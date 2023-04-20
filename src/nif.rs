@@ -123,7 +123,7 @@ impl NIF for Print {
                         let item: String = item.clone().into();
                         item
                     })
-                    .for_each(|item| stdout.push(item.clone()));
+                    .for_each(|item| stdout.push(item));
             }
 
             None => {

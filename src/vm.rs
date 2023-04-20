@@ -43,11 +43,7 @@ impl VM {
     }
 
     pub(crate) fn run(&mut self, function: Function) -> InterpretResult {
-        let debug = if var_os("DEBUG").is_some() {
-            true
-        } else {
-            false
-        };
+        let debug = var_os("DEBUG").is_some();
 
         let mut iterator = function.into_iter().peekable();
         while let Some(current) = iterator.next() {
@@ -295,7 +291,7 @@ impl VM {
                     let value = match address_option.map(|address| self.stack_get(address as usize))
                     {
                         Some(Some(value)) => Some(value),
-                        None | Some(None) => self.globals.get(variable_name).map(|v| v.clone()),
+                        None | Some(None) => self.globals.get(variable_name).cloned(),
                     };
 
                     if value.is_none() {
@@ -351,11 +347,11 @@ impl VM {
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some(Value::String(loop_name)) = self.get_constant(address as usize) else {
+                    let Some(Value::String(loop_name)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
 
-                    let Some(lp) = self.get_loop(&loop_name) else {
+                    let Some(lp) = self.get_loop(loop_name) else {
                         return InterpretResult::RuntimeError;
                     };
 
@@ -373,7 +369,7 @@ impl VM {
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some(Value::Number(scope)) = self.get_constant(address as usize) else {
+                    let Some(Value::Number(scope)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
                     let scope = *scope as u128;
@@ -382,7 +378,7 @@ impl VM {
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some(Value::Number(args)) = self.get_constant(address as usize) else {
+                    let Some(Value::Number(args)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
                     let args = *args as u128;
@@ -391,7 +387,7 @@ impl VM {
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some(Value::String(function_name)) = self.get_constant(address as usize) else {
+                    let Some(Value::String(function_name)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
                     let function_name = function_name.clone();
@@ -439,7 +435,7 @@ impl VM {
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some(Value::Number(scope)) = self.get_constant(address as usize) else {
+                    let Some(Value::Number(scope)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
                     let scope = *scope as u128;
@@ -468,8 +464,7 @@ impl VM {
     pub(crate) fn function_exists(&self, scope_depth: u128, name: &String) -> bool {
         self.functions
             .iter()
-            .find(|(function, scope)| function.name() == *name && *scope == scope_depth)
-            .is_some()
+            .any(|(function, scope)| function.name() == *name && *scope == scope_depth)
     }
 
     pub(crate) fn stack_push(&mut self, value: Value) {
@@ -481,15 +476,11 @@ impl VM {
     }
 
     pub(crate) fn stack_peek(&mut self) -> Option<Value> {
-        self.stack.last().unwrap().last().map(|v| v.clone())
+        self.stack.last().unwrap().last().cloned()
     }
 
     pub(crate) fn stack_get(&self, address: usize) -> Option<Value> {
-        self.stack
-            .last()
-            .unwrap()
-            .get(address)
-            .map(|value| value.clone())
+        self.stack.last().unwrap().get(address).cloned()
     }
 
     pub(crate) fn stack_insert(&mut self, address: usize, value: Value) {
@@ -538,7 +529,7 @@ impl VM {
                 let Value::Function(function) = function else {
                     panic!();
                 };
-                return function.clone();
+                function.clone()
             })
     }
 
@@ -547,7 +538,7 @@ impl VM {
             .functions
             .iter()
             .filter(|(_, scope)| *scope != given_scope)
-            .map(|item| item.clone())
+            .cloned()
             .collect();
     }
 
@@ -556,7 +547,7 @@ impl VM {
     }
 
     fn get_loop(&self, name: &String) -> Option<Function> {
-        self.loops.get(name).map(|lp| lp.clone())
+        self.loops.get(name).cloned()
     }
 
     fn remove_loop(&mut self, name: &String) {
