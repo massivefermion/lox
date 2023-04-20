@@ -354,12 +354,10 @@ impl VM {
                     self.stack.push(vec![]);
                     let name = lp.name().clone();
                     match self.run(lp) {
-                        InterpretResult::Ok => {
-                            self.stack.pop();
-                            self.remove_loop(&name);
-                        }
+                        InterpretResult::Ok => self.stack.pop(),
                         _ => return InterpretResult::RuntimeError,
-                    }
+                    };
+                    self.remove_loop(&name);
                 }
 
                 OpCode::Call => {
