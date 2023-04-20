@@ -520,7 +520,7 @@ impl<'a> Compiler<'a> {
 
             Some(token) if token.kind() == Kind::Identifier => {
                 let name: String = token.value().unwrap().into();
-                let address = self.resolve_local(name.clone());
+                let address = self.resolve_local(name.clone(), self.scope_depth);
                 match self.scanner.peek() {
                     Some(token) if token.kind() == Kind::Equal && can_assign => {
                         self.scanner.next();
@@ -652,12 +652,12 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn resolve_local(&mut self, name: String) -> Option<u128> {
+    fn resolve_local(&mut self, name: String, scope: u128) -> Option<u128> {
         self.locals
             .iter()
             .enumerate()
             .rev()
-            .find(|(_, item)| item.0 == name)
+            .find(|(_, item)| item.0 == name && item.1 == scope)
             .map(|(index, _)| index as u128)
     }
 
