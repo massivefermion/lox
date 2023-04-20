@@ -247,11 +247,6 @@ impl<'a> Compiler<'a> {
 
     fn compile_statement(&mut self, manage_scope: bool) {
         match self.scanner.peek() {
-            // Some(token) if [Kind::Print, Kind::PrintLn].contains(&token.kind()) => {
-            //     let kind = token.kind();
-            //     self.scanner.next();
-            //     self.compile_print(kind == Kind::PrintLn);
-            // }
             Some(token) if token.kind() == Kind::If => {
                 self.scanner.next();
                 self.compile_if();
@@ -315,15 +310,6 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    // fn compile_print(&mut self, with_new_line: bool) {
-    //     self.compile_expression();
-    //     self.expect(Kind::Semicolon);
-    //     self.function().add_op(OpCode::Print);
-    //     if with_new_line {
-    //         self.function().add_op(OpCode::NewLine);
-    //     }
-    // }
-
     fn compile_if(&mut self) {
         self.compile_expression();
         let jump_address = self.function().add_jump(true);
@@ -349,21 +335,21 @@ impl<'a> Compiler<'a> {
 
     // TODO needs closures for full functionality!
     fn compile_while(&mut self) {
-        self.compile_expression();
-
         let name: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
             .take(16)
             .map(char::from)
             .collect();
-
         self.new_function(name.clone(), 0);
+
+        self.compile_expression();
+
         let jump_address = self.function().add_jump(true);
 
         self.compile_statement(true);
-
         self.function().add_op(OpCode::Loop);
         self.add_constant(Value::String(name.clone()));
+
         self.function().patch_jump(jump_address);
 
         let function = self.functions.pop().unwrap();

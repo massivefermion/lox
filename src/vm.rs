@@ -227,22 +227,6 @@ impl VM {
                     self.stack_push(Value::Boolean(left < right));
                 }
 
-                // OpCode::Print => {
-                //     let Some(value) = self.stack_pop() else {
-                //         return InterpretResult::RuntimeError;
-                //     };
-
-                //     let value: String = value.into();
-                //     match iterator.peek() {
-                //         Some(op_code) if OpCode::from(*op_code as u8) == OpCode::NewLine => {
-                //             iterator.next();
-                //             println!("{}", value);
-                //         }
-                //         Some(_) => print!("{}", value),
-                //         // None => return InterpretResult::RuntimeError,
-                //         None => (),
-                //     }
-                // }
                 OpCode::Pop => {
                     self.stack_pop();
                 }
@@ -367,11 +351,8 @@ impl VM {
                         return InterpretResult::RuntimeError;
                     };
 
-                    let mut substack = vec![];
-                    substack.push(self.stack_pop().unwrap());
-                    self.stack.push(substack);
+                    self.stack.push(vec![]);
                     let name = lp.name().clone();
-
                     match self.run(lp) {
                         InterpretResult::Ok => {
                             self.stack.pop();
@@ -830,22 +811,24 @@ mod test {
     }
 
     #[test]
-    fn simple_global_while() {
+    fn global_while() {
         let mut vm = new_for_test();
         assert_eq!(
             vm.interpret(
                 r#"
-                    let a = 4;
-                    while a {
-                        print(a);
+                    let a = 2;
+                    let b = 5;
+                    while a * b != -2 {
+                        print(a, b);
                         a = a - 1;
-                    }
+                        b = b - 1;
+                    }                
                 "#
                 .to_string()
             ),
             InterpretResult::Ok
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["4", "3", "2", "1"]);
+        assert_eq!(vm.stdout.unwrap(), vec!["2", "5", "1", "4", "0", "3",]);
     }
 
     #[test]
