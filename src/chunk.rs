@@ -16,10 +16,6 @@ impl<T> Chunk<T> {
         self.storage.len() - 1
     }
 
-    // pub(crate) fn append(&mut self, items: &mut Vec<T>) {
-    //     self.storage.append(items);
-    // }
-
     pub(crate) fn get(&self, address: usize) -> Option<&T> {
         self.storage.get(address)
     }
