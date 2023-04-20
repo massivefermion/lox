@@ -16,7 +16,7 @@ pub(crate) struct Compiler<'a> {
     scope_depth: u128,
     errors: Vec<LoxError>,
     functions: Vec<Function>,
-    locals: Vec<(String, u128)>,
+    locals: Vec<(String, u128, u128)>,
     scanner: Peekable<Scanner<'a>>,
 }
 
@@ -115,7 +115,7 @@ impl<'a> Compiler<'a> {
                         let variable_name: String = variable_name.into();
 
                         if variable_name != "_".to_string() {
-                            match self.locals.iter().find(|(name, scope)| {
+                            match self.locals.iter().find(|(name, scope, _)| {
                                 *name == variable_name && *scope == self.scope_depth
                             }) {
                                 Some(_) => self.errors.push(LoxError::new(
@@ -125,7 +125,11 @@ impl<'a> Compiler<'a> {
                                     None,
                                 )),
                                 None => {
-                                    self.locals.push((variable_name.into(), self.scope_depth));
+                                    self.locals.push((
+                                        variable_name.into(),
+                                        self.scope_depth,
+                                        self.functions.len() as u128,
+                                    ));
                                 }
                             }
                         }
@@ -172,7 +176,11 @@ impl<'a> Compiler<'a> {
                         Some(token) if token.kind() == Kind::Identifier => {
                             arity += 1;
                             let variable_name: String = token.value().unwrap().into();
-                            self.locals.push((variable_name.into(), self.scope_depth));
+                            self.locals.push((
+                                variable_name.into(),
+                                self.scope_depth,
+                                self.functions.len() as u128,
+                            ));
 
                             match self.scanner.peek() {
                                 Some(token) if token.kind() == Kind::Comma => {
@@ -282,7 +290,7 @@ impl<'a> Compiler<'a> {
                 self.locals = self
                     .locals
                     .iter()
-                    .filter(|(_, scope)| *scope != self.scope_depth)
+                    .filter(|(_, scope, _)| *scope != self.scope_depth)
                     .map(|item| item.clone())
                     .collect();
 
@@ -520,7 +528,7 @@ impl<'a> Compiler<'a> {
 
             Some(token) if token.kind() == Kind::Identifier => {
                 let name: String = token.value().unwrap().into();
-                let address = self.resolve_local(name.clone());
+                let address = self.resolve_local(name.clone(), self.functions.len() as u128);
                 match self.scanner.peek() {
                     Some(token) if token.kind() == Kind::Equal && can_assign => {
                         self.scanner.next();
@@ -652,12 +660,12 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn resolve_local(&mut self, name: String) -> Option<u128> {
+    fn resolve_local(&mut self, name: String, frame: u128) -> Option<u128> {
         self.locals
             .iter()
             .enumerate()
             .rev()
-            .find(|(_, item)| item.0 == name)
+            .find(|(_, item)| item.0 == name && item.2 == frame)
             .map(|(index, _)| index as u128)
     }
 
