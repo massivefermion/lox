@@ -272,7 +272,18 @@ impl VM {
                     }
                 }
 
-                OpCode::GetGlobal => {
+                OpCode::GetVar => {
+                    iterator.next();
+                    let Some(address) = iterator.next() else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    let address_option = match self.get_constant(address) {
+                        Some(Value::Number(address)) => Some(*address as u128),
+                        Some(Value::Nil) => None,
+                        _ => return InterpretResult::RuntimeError,
+                    };
+
                     iterator.next();
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
@@ -280,10 +291,18 @@ impl VM {
                     let Some(Value::String(variable_name)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some(value) = self.globals.get(variable_name) else {
-                        return InterpretResult::RuntimeError;
+
+                    let value = match address_option.map(|address| self.stack_get(address as usize))
+                    {
+                        Some(Some(value)) => Some(value),
+                        None | Some(None) => self.globals.get(variable_name).map(|v| v.clone()),
                     };
-                    self.stack_push(value.clone());
+
+                    if value.is_none() {
+                        return InterpretResult::RuntimeError;
+                    }
+
+                    self.stack_push(value.unwrap());
                 }
 
                 OpCode::SetLocal => {
@@ -294,17 +313,6 @@ impl VM {
                         return InterpretResult::RuntimeError;
                     };
                     self.stack_insert(address, value);
-                }
-
-                OpCode::GetLocal => {
-                    let Some(address) = iterator.next() else {
-                        return InterpretResult::RuntimeError;
-                    };
-
-                    let Some(value) = self.stack_get(address) else {
-                        return InterpretResult::RuntimeError;
-                    };
-                    self.stack_push(value.clone());
                 }
 
                 OpCode::JumpIfFalse => {

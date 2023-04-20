@@ -598,23 +598,21 @@ impl<'a> Compiler<'a> {
                         self.add_constant(token.value().unwrap());
                     }
 
-                    _ => match address {
-                        Some(address) => {
-                            self.function().add_op(OpCode::GetLocal);
-                            self.function().add_address(address as usize);
-                        }
+                    _ if self.vm.function_exists(self.scope_depth, &name) => {
+                        let function = self.vm.resolve_function(&name, self.scope_depth).unwrap();
+                        self.add_constant(Value::Function(function));
+                    }
 
-                        None if !self.vm.function_exists(self.scope_depth, &name) => {
-                            self.function().add_op(OpCode::GetGlobal);
-                            self.add_constant(token.value().unwrap());
-                        }
+                    _ => {
+                        let address = match address {
+                            Some(address) => Value::Number(address as f64),
+                            None => Value::Nil,
+                        };
 
-                        _ => {
-                            let function =
-                                self.vm.resolve_function(&name, self.scope_depth).unwrap();
-                            self.add_constant(Value::Function(function));
-                        }
-                    },
+                        self.function().add_op(OpCode::GetVar);
+                        self.add_constant(address);
+                        self.add_constant(token.value().unwrap());
+                    }
                 }
             }
 
