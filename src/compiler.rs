@@ -17,7 +17,7 @@ pub(crate) struct Compiler<'a> {
     scope_depth: u128,
     errors: Vec<LoxError>,
     functions: Vec<Function>,
-    locals: Vec<(String, u128)>,
+    locals: Vec<Vec<(String, u128)>>,
     scanner: Peekable<Scanner<'a>>,
 }
 
@@ -26,7 +26,7 @@ impl<'a> Compiler<'a> {
         Compiler {
             vm,
             errors: vec![],
-            locals: vec![],
+            locals: vec![vec![]],
             scope_depth: 0,
             functions: vec![function],
             scanner: Scanner::new(source).peekable(),
@@ -72,7 +72,7 @@ impl<'a> Compiler<'a> {
                     self.function().already_returns();
                 }
 
-                _ => self.compile_statement(true),
+                _ => self.compile_statement(true, true),
             },
 
             None => self.errors.push(LoxError::new(
@@ -116,8 +116,9 @@ impl<'a> Compiler<'a> {
                         let variable_name: String = variable_name.into();
 
                         if variable_name != *"_" {
-                            match self.locals.iter().find(|(name, scope)| {
-                                *name == variable_name && *scope == self.scope_depth
+                            let current_scope = self.scope_depth;
+                            match self.locals().iter().find(|(name, scope)| {
+                                *name == variable_name && *scope == current_scope
                             }) {
                                 Some(_) => self.errors.push(LoxError::new(
                                     format!("Variable {:?} is already defined", variable_name)
@@ -126,7 +127,7 @@ impl<'a> Compiler<'a> {
                                     None,
                                 )),
                                 None => {
-                                    self.locals.push((variable_name, self.scope_depth));
+                                    self.locals().push((variable_name, current_scope));
                                 }
                             }
                         }
@@ -165,7 +166,7 @@ impl<'a> Compiler<'a> {
                 }
 
                 let unique_locals: HashSet<String> =
-                    HashSet::from_iter(self.locals.iter().map(|(name, _)| name.clone()));
+                    HashSet::from_iter(self.locals().iter().map(|(name, _)| name.clone()));
                 let captured: HashMap<String, usize> =
                     HashMap::from_iter(unique_locals.iter().map(|name| {
                         (
@@ -176,6 +177,7 @@ impl<'a> Compiler<'a> {
 
                 self.expect(Kind::LeftParen);
                 self.scope_depth += 1;
+                self.locals.push(vec![]);
                 let mut arity = 0;
 
                 loop {
@@ -183,7 +185,8 @@ impl<'a> Compiler<'a> {
                         Some(token) if token.kind() == Kind::Identifier => {
                             arity += 1;
                             let variable_name: String = token.value().unwrap().into();
-                            self.locals.push((variable_name, self.scope_depth));
+                            let current_scope = self.scope_depth;
+                            self.locals().push((variable_name, current_scope));
 
                             match self.scanner.peek() {
                                 Some(token) if token.kind() == Kind::Comma => {
@@ -229,13 +232,14 @@ impl<'a> Compiler<'a> {
                 }
 
                 self.new_function(function_name, arity, captured);
-                self.compile_statement(false);
+                self.compile_statement(false, true);
                 if let Some(false) = self.function().has_return() {
                     self.function().add_op(OpCode::Nil);
                     self.function().add_op(OpCode::Return);
                 }
                 self.scope_depth -= 1;
                 let function = self.functions.pop().unwrap();
+                self.locals.pop();
                 let address = self.vm.add_function(self.scope_depth, function);
                 if self.scope_depth > 0 {
                     self.function().add_op(OpCode::MakeClosure);
@@ -257,7 +261,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_statement(&mut self, manage_scope: bool) {
+    fn compile_statement(&mut self, manage_scope: bool, clear_scope: bool) {
         match self.scanner.peek() {
             Some(token) if token.kind() == Kind::If => {
                 self.scanner.next();
@@ -291,11 +295,14 @@ impl<'a> Compiler<'a> {
                 }
                 self.expect(Kind::RightBrace);
 
-                self.locals.retain(|(_, scope)| *scope != self.scope_depth);
+                let current_scope = self.scope_depth;
+                self.locals().retain(|(_, scope)| *scope != current_scope);
 
-                let scope = self.scope_depth;
-                self.function().add_op(OpCode::ClearScope);
-                self.add_constant(Value::Number(scope as f64));
+                if clear_scope {
+                    let scope = self.scope_depth;
+                    self.function().add_op(OpCode::ClearScope);
+                    self.add_constant(Value::Number(scope as f64));
+                }
 
                 if manage_scope {
                     self.scope_depth -= 1;
@@ -321,7 +328,7 @@ impl<'a> Compiler<'a> {
         self.compile_expression();
         let jump_address = self.function().add_jump(true);
         self.function().add_op(OpCode::Pop);
-        self.compile_statement(true);
+        self.compile_statement(true, true);
         let else_jump_address = self.function().add_jump(false);
         self.function().patch_jump(jump_address);
         self.function().add_op(OpCode::Pop);
@@ -329,7 +336,7 @@ impl<'a> Compiler<'a> {
         if let Some(token) = self.scanner.peek() {
             if token.kind() == Kind::Else {
                 self.scanner.next();
-                self.compile_statement(true);
+                self.compile_statement(true, true);
             }
         }
 
@@ -339,7 +346,7 @@ impl<'a> Compiler<'a> {
     // TODO closure usage is buggy!
     fn compile_while(&mut self) {
         let unique_locals: HashSet<String> =
-            HashSet::from_iter(self.locals.iter().map(|(name, _)| name.clone()));
+            HashSet::from_iter(self.locals().iter().map(|(name, _)| name.clone()));
         let captured: HashMap<String, usize> =
             HashMap::from_iter(unique_locals.iter().map(|name| {
                 (
@@ -353,19 +360,26 @@ impl<'a> Compiler<'a> {
             .take(16)
             .map(char::from)
             .collect();
+
+        self.scope_depth += 1;
+        self.locals.push(vec![]);
         self.new_function(name.clone(), 0, captured);
 
         self.compile_expression();
 
         let jump_address = self.function().add_jump(true);
+        self.function().add_op(OpCode::Pop);
 
-        self.compile_statement(true);
+        self.compile_statement(false, false);
         self.function().add_op(OpCode::Loop);
         self.add_constant(Value::String(name.clone()));
 
         self.function().patch_jump(jump_address);
+        self.function().add_op(OpCode::Pop);
 
+        self.scope_depth -= 1;
         let function = self.functions.pop().unwrap();
+        self.locals.pop();
         self.vm.add_loop(function);
 
         self.function().add_op(OpCode::Loop);
@@ -543,6 +557,18 @@ impl<'a> Compiler<'a> {
                                 self.function().add_op(OpCode::SetLocal);
                                 self.function().add_address(address as usize);
                             }
+
+                            None if self
+                                .functions
+                                .last()
+                                .unwrap()
+                                .captured()
+                                .contains_key(&name) =>
+                            {
+                                self.function().add_op(OpCode::SetCaptured);
+                                self.add_constant(Value::String(name));
+                            }
+
                             None => {
                                 self.function().add_op(OpCode::SetGlobal);
                                 self.add_constant(Value::String(name));
@@ -611,9 +637,9 @@ impl<'a> Compiler<'a> {
                         self.add_constant(token.value().unwrap());
                     }
 
-                    _ if self.vm.function_exists(self.scope_depth, &name) => {
-                        let function = self.vm.resolve_function(&name, self.scope_depth).unwrap();
-                        self.add_constant(Value::Function(function));
+                    _ if address.is_some() => {
+                        self.function().add_op(OpCode::GetLocal);
+                        self.function().add_address(address.unwrap() as usize);
                     }
 
                     _ if self
@@ -627,17 +653,14 @@ impl<'a> Compiler<'a> {
                         self.add_constant(token.value().unwrap());
                     }
 
-                    _ => {
-                        let address = match address {
-                            Some(address) => Value::Number(
-                                (address - self.shift_amount(self.scope_depth)) as f64,
-                            ),
-                            None => Value::Nil,
-                        };
+                    _ if self.vm.function_exists(self.scope_depth, &name) => {
+                        let function = self.vm.resolve_function(&name, self.scope_depth).unwrap();
+                        self.add_constant(Value::Function(function));
+                    }
 
-                        self.function().add_op(OpCode::GetVar);
-                        self.add_constant(address);
-                        self.add_constant(token.value().unwrap());
+                    _ => {
+                        self.function().add_op(OpCode::GetGlobal);
+                        self.add_constant(Value::String(name));
                     }
                 }
             }
@@ -677,7 +700,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn resolve_local(&mut self, name: String) -> Option<u128> {
-        self.locals
+        self.locals()
             .iter()
             .enumerate()
             .rev()
@@ -685,11 +708,8 @@ impl<'a> Compiler<'a> {
             .map(|(index, _)| index as u128)
     }
 
-    fn shift_amount(&self, scope: u128) -> u128 {
-        match self.functions.len() {
-            1 => 0,
-            _ => self.locals.iter().filter(|item| item.1 < scope).count() as u128,
-        }
+    fn locals(&mut self) -> &mut Vec<(String, u128)> {
+        self.locals.last_mut().unwrap()
     }
 
     fn function(&mut self) -> &mut Function {

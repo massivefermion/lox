@@ -110,17 +110,17 @@ impl Debug for Function {
         while let Some((offset, current)) = iterator.next() {
             let op_code = OpCode::from(*current as u8);
             let string_offset = format!("{:0>4}", offset);
-            writeln!(f, "{}   {:?}", string_offset, op_code)?;
+            // writeln!(f, "{}   {:?}", string_offset, op_code)?;
             let params = OpCode::params(&op_code);
             for _ in 0..params {
-                // iterator.next();
-                let Some((offset, address)) = iterator.next() else {
-                    todo!()
-                };
-                let string_offset = format!("{:0>4}", offset);
-                writeln!(f, "{}   {:?}", string_offset, address)?;
+                iterator.next();
+                // let Some((offset, address)) = iterator.next() else {
+                //     todo!()
+                // };
+                // let string_offset = format!("{:0>4}", offset);
+                // writeln!(f, "{}   {:?}", string_offset, address)?;
             }
-            // writeln!(f, "{}   {:?}", string_offset, op_code)?;
+            writeln!(f, "{}   {:?}", string_offset, op_code)?;
         }
         Ok(())
     }

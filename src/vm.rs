@@ -273,7 +273,37 @@ impl VM {
                         return InterpretResult::RuntimeError;
                     };
 
+                    if let Value::Function(function) = value.clone() {
+                        if *variable_name != function.name() {
+                            self.function_pointers
+                                .insert(variable_name.clone(), function.name());
+                        };
+                    };
+
                     if self.globals.insert(variable_name, value).is_none() {
+                        return InterpretResult::RuntimeError;
+                    };
+                }
+
+                OpCode::SetCaptured => {
+                    iterator.next();
+                    let Some(address) = iterator.next() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(Value::String(variable_name)) = self.get_constant(address) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let variable_name = variable_name.clone();
+
+                    let Some(value) = self.stack_peek() else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    let Some(closure) = self.closures.get_mut(&function.name()) else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    if closure.insert(variable_name, value).is_none() {
                         return InterpretResult::RuntimeError;
                     };
                 }
@@ -286,7 +316,7 @@ impl VM {
                     let Some(Value::Number(address)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some((function, _))=self.functions.get(*address as usize) else {
+                    let Some((function, _)) = self.functions.get(*address as usize) else {
                         return InterpretResult::RuntimeError;
                     };
 
@@ -330,18 +360,7 @@ impl VM {
                     self.stack_push(value.clone());
                 }
 
-                OpCode::GetVar => {
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
-                        return InterpretResult::RuntimeError;
-                    };
-
-                    let address_option = match self.get_constant(address) {
-                        Some(Value::Number(address)) => Some(*address as u128),
-                        Some(Value::Nil) => None,
-                        _ => return InterpretResult::RuntimeError,
-                    };
-
+                OpCode::GetGlobal => {
                     iterator.next();
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
@@ -351,17 +370,20 @@ impl VM {
                     };
                     let variable_name = variable_name.clone();
 
-                    let value = match address_option.map(|address| self.stack_get(address as usize))
-                    {
-                        Some(Some(value)) => Some(value),
-                        None | Some(None) => self.globals.get(&variable_name).cloned(),
-                    };
-
-                    if value.is_none() {
+                    let Some(value) = self.globals.get(&variable_name) else {
                         return InterpretResult::RuntimeError;
-                    }
+                    };
+                    self.stack_push(value.clone());
+                }
 
-                    self.stack_push(value.unwrap());
+                OpCode::GetLocal => {
+                    let Some(address) = iterator.next() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(value) = self.stack_get(address) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack_push(value.clone());
                 }
 
                 OpCode::SetLocal => {
@@ -498,7 +520,6 @@ impl VM {
                             };
 
                             if function.is_none() {
-                                println!("FLAG A");
                                 return InterpretResult::RuntimeError;
                             }
 
@@ -574,14 +595,14 @@ impl VM {
     }
 
     pub(crate) fn stack_get(&self, address: usize) -> Option<Value> {
-        self.stack
-            .clone()
-            .into_iter()
-            .flatten()
-            .enumerate()
-            .find(|(index, _)| *index == address)
-            .map(|(_, value)| value)
-        // self.stack.last().unwrap().get(address).cloned()
+        // self.stack
+        //     .clone()
+        //     .into_iter()
+        //     .flatten()
+        //     .enumerate()
+        //     .find(|(index, _)| *index == address)
+        //     .map(|(_, value)| value)
+        self.stack.last().unwrap().get(address).cloned()
     }
 
     pub(crate) fn stack_insert(&mut self, address: usize, value: Value) {
@@ -869,7 +890,30 @@ mod test {
                         print(a, b);
                         a = a - 1;
                         b = b - 1;
-                    }                
+                    }
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout.unwrap(), vec!["2", "5", "1", "4", "0", "3",]);
+    }
+
+    #[test]
+    fn local_while() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    {
+                        let a = 2;
+                        let b = 5;
+                        while a * b != -2 {
+                            print(a, b);
+                            a = a - 1;
+                            b = b - 1;
+                        }
+                    }
                 "#
                 .to_string()
             ),
