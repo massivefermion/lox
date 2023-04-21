@@ -36,7 +36,7 @@ fn main() -> Result<InterpretResult, InterpretResult> {
 fn repl(vm: &mut vm::VM) -> Result<InterpretResult, InterpretResult> {
     match DefaultEditor::new() {
         Ok(mut rl) => {
-            let result = loop {
+            loop {
                 let line = rl.readline("lox -> ");
                 match line {
                     Ok(mut line) => {
@@ -77,8 +77,7 @@ fn repl(vm: &mut vm::VM) -> Result<InterpretResult, InterpretResult> {
                     }
                     _ => break Err(InterpretResult::CliError),
                 }
-            };
-            result
+            }
         }
         Err(_) => Err(InterpretResult::CliError),
     }

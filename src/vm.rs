@@ -262,9 +262,8 @@ impl VM {
                         return InterpretResult::RuntimeError;
                     };
 
-                    match self.globals.insert(variable_name, value) {
-                        None => return InterpretResult::RuntimeError,
-                        _ => (),
+                    if self.globals.insert(variable_name, value).is_none() {
+                        return InterpretResult::RuntimeError;
                     }
                 }
 
@@ -515,10 +514,7 @@ impl VM {
     fn get_function_from_constants(&self, name: &String) -> Option<Function> {
         self.constants
             .into_iter()
-            .filter(|value| match value {
-                Value::Function(_) => true,
-                _ => false,
-            })
+            .filter(|value| matches!(value, Value::Function(_)))
             .find(|function| {
                 let Value::Function(function) = function else {
                     panic!();
@@ -534,12 +530,7 @@ impl VM {
     }
 
     fn clear_scope_functions(&mut self, given_scope: u128) {
-        self.functions = self
-            .functions
-            .iter()
-            .filter(|(_, scope)| *scope != given_scope)
-            .cloned()
-            .collect();
+        self.functions.retain(|(_, scope)| *scope != given_scope);
     }
 
     fn get_constant(&self, address: usize) -> Option<&Value> {

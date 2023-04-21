@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::fmt::Display;
 
 use crate::function::Function;
 
@@ -30,27 +31,21 @@ impl Value {
             Self::Function(_) => Type::Function,
         }
     }
-
-    fn to_string(self) -> String {
-        self.into()
-    }
 }
 
-impl Into<f64> for Value {
-    fn into(self) -> f64 {
-        match self {
-            Self::Number(value) => value,
+impl From<Value> for f64 {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Number(value) => value,
             _ => panic!("value is not a number"),
         }
     }
 }
 
-impl Into<i128> for Value {
-    fn into(self) -> i128 {
-        match self {
-            Self::Number(value) => value as i128,
-            _ => panic!("value is not a number"),
-        }
+impl From<Value> for i128 {
+    fn from(value: Value) -> Self {
+        let value: f64 = value.into();
+        value as i128
     }
 }
 
@@ -67,10 +62,10 @@ impl From<Value> for String {
     }
 }
 
-impl Into<bool> for Value {
-    fn into(self) -> bool {
-        match self {
-            Self::Boolean(value) => value,
+impl From<Value> for bool {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Boolean(value) => value,
             _ => panic!("value is not a boolean"),
         }
     }
@@ -82,16 +77,19 @@ impl From<&str> for Value {
     }
 }
 
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", String::from(self.clone()))?;
+        Ok(())
+    }
+}
+
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match self.get_type() == other.get_type() {
             false => false,
             true => self.clone().to_string() == other.clone().to_string(),
         }
-    }
-
-    fn ne(&self, other: &Self) -> bool {
-        !self.eq(other)
     }
 }
 

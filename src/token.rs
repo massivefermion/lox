@@ -76,8 +76,8 @@ pub(crate) enum Kind {
 }
 
 impl Kind {
-    pub(crate) fn keyword_equivalent(candidate: &String) -> Option<Kind> {
-        match candidate.as_str() {
+    pub(crate) fn keyword_equivalent(candidate: &str) -> Option<Kind> {
+        match candidate {
             "if" => Some(Self::If),
             "or" => Some(Self::Or),
             "and" => Some(Self::And),

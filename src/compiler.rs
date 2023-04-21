@@ -21,7 +21,7 @@ pub(crate) struct Compiler<'a> {
 }
 
 impl<'a> Compiler<'a> {
-    pub(crate) fn new(vm: &'a mut VM, function: Function, source: &'a String) -> Compiler<'a> {
+    pub(crate) fn new(vm: &'a mut VM, function: Function, source: &'a str) -> Compiler<'a> {
         Compiler {
             vm,
             functions: vec![function],
@@ -219,12 +219,9 @@ impl<'a> Compiler<'a> {
 
                 self.new_function(function_name, arity);
                 self.compile_statement(false);
-                match self.function().has_return() {
-                    Some(false) => {
-                        self.function().add_op(OpCode::Nil);
-                        self.function().add_op(OpCode::Return);
-                    }
-                    _ => (),
+                if let Some(false) = self.function().has_return() {
+                    self.function().add_op(OpCode::Nil);
+                    self.function().add_op(OpCode::Return);
                 }
                 self.scope_depth -= 1;
                 let function = self.functions.pop().unwrap();
@@ -279,12 +276,7 @@ impl<'a> Compiler<'a> {
                 }
                 self.expect(Kind::RightBrace);
 
-                self.locals = self
-                    .locals
-                    .iter()
-                    .filter(|(_, scope)| *scope != self.scope_depth)
-                    .cloned()
-                    .collect();
+                self.locals.retain(|(_, scope)| *scope != self.scope_depth);
 
                 let scope = self.scope_depth;
                 self.function().add_op(OpCode::ClearScope);
@@ -319,17 +311,13 @@ impl<'a> Compiler<'a> {
         self.function().patch_jump(jump_address);
         self.function().add_op(OpCode::Pop);
 
-        match self.scanner.peek() {
-            Some(token) => match token.kind() {
-                Kind::Else => {
-                    self.scanner.next();
-                    self.compile_statement(true);
-                }
+        if let Some(token) = self.scanner.peek() {
+            if token.kind() == Kind::Else {
+                self.scanner.next();
+                self.compile_statement(true);
+            }
+        }
 
-                _ => (),
-            },
-            None => (),
-        };
         self.function().patch_jump(else_jump_address);
     }
 

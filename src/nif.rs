@@ -4,14 +4,14 @@ use crate::error::InterpretResult;
 use crate::value::Value;
 use crate::vm::VM;
 
-pub(crate) trait NIF {
+pub(crate) trait Nif {
     fn name(&self) -> String;
     fn arity(&self) -> Option<u128>;
     fn call(&self, vm: &mut VM, args_count: usize) -> Result<(), InterpretResult>;
 }
 
-pub(crate) fn resolve_nif(name: &String) -> Option<Box<dyn NIF>> {
-    match name.as_str() {
+pub(crate) fn resolve_nif(name: &str) -> Option<Box<dyn Nif>> {
+    match name {
         "div" => Some(Box::new(Div)),
         "clock" => Some(Box::new(Clock)),
         "parse" => Some(Box::new(Parse)),
@@ -29,7 +29,7 @@ struct Print;
 struct TypeOf;
 struct PrintLn;
 
-impl NIF for Div {
+impl Nif for Div {
     fn name(&self) -> String {
         "div".into()
     }
@@ -54,7 +54,7 @@ impl NIF for Div {
     }
 }
 
-impl NIF for Clock {
+impl Nif for Clock {
     fn name(&self) -> String {
         "clock".into()
     }
@@ -73,7 +73,7 @@ impl NIF for Clock {
     }
 }
 
-impl NIF for Parse {
+impl Nif for Parse {
     fn name(&self) -> String {
         "parse".to_string()
     }
@@ -99,7 +99,7 @@ impl NIF for Parse {
     }
 }
 
-impl NIF for Print {
+impl Nif for Print {
     fn name(&self) -> String {
         "print".into()
     }
@@ -140,7 +140,7 @@ impl NIF for Print {
     }
 }
 
-impl NIF for TypeOf {
+impl Nif for TypeOf {
     fn name(&self) -> String {
         "type_of".into()
     }
@@ -165,7 +165,7 @@ impl NIF for TypeOf {
     }
 }
 
-impl NIF for PrintLn {
+impl Nif for PrintLn {
     fn name(&self) -> String {
         "println".into()
     }

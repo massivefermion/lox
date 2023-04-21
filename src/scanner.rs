@@ -12,7 +12,7 @@ pub(crate) struct Scanner<'a> {
 }
 
 impl<'a> Scanner<'a> {
-    pub(crate) fn new(source: &'a String) -> Scanner<'a> {
+    pub(crate) fn new(source: &'a str) -> Scanner<'a> {
         Scanner {
             cursor: (1, 1),
             token_start: None,
