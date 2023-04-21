@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 
 use crate::chunk::{Chunk, ChunkIterator};
@@ -5,17 +6,19 @@ use crate::op::OpCode;
 
 #[derive(Clone)]
 pub(crate) struct Function {
-    name: String,
     arity: u128,
+    name: String,
     codes: Chunk<usize>,
     has_return: Option<bool>,
+    captured: HashMap<String, usize>,
 }
 
 impl Function {
-    pub(crate) fn new(name: String, arity: u128) -> Function {
+    pub(crate) fn new(name: String, arity: u128, captured: HashMap<String, usize>) -> Function {
         Function {
             name,
             arity,
+            captured,
             codes: Chunk::new(),
             has_return: Some(false),
         }
@@ -25,8 +28,9 @@ impl Function {
         Function {
             name,
             arity: 0,
-            codes: Chunk::new(),
             has_return: None,
+            codes: Chunk::new(),
+            captured: HashMap::new(),
         }
     }
 
@@ -65,6 +69,10 @@ impl Function {
     pub(crate) fn already_returns(&mut self) {
         self.has_return = Some(true);
     }
+
+    pub(crate) fn captured(&self) -> HashMap<String, usize> {
+        self.captured.clone()
+    }
 }
 
 pub(crate) struct FunctionIterator<'a> {
@@ -102,17 +110,17 @@ impl Debug for Function {
         while let Some((offset, current)) = iterator.next() {
             let op_code = OpCode::from(*current as u8);
             let string_offset = format!("{:0>4}", offset);
-            // writeln!(f, "{}   {:?}", string_offset, op_code)?;
+            writeln!(f, "{}   {:?}", string_offset, op_code)?;
             let params = OpCode::params(&op_code);
             for _ in 0..params {
-                iterator.next();
-                // let Some((offset, address)) = iterator.next() else {
-                //     todo!()
-                // };
-                // let string_offset = format!("{:0>4}", offset);
-                // writeln!(f, "{}   {:?}", string_offset, address)?;
+                // iterator.next();
+                let Some((offset, address)) = iterator.next() else {
+                    todo!()
+                };
+                let string_offset = format!("{:0>4}", offset);
+                writeln!(f, "{}   {:?}", string_offset, address)?;
             }
-            writeln!(f, "{}   {:?}", string_offset, op_code)?;
+            // writeln!(f, "{}   {:?}", string_offset, op_code)?;
         }
         Ok(())
     }

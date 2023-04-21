@@ -25,6 +25,8 @@ pub(crate) enum OpCode {
     SetGlobal,
     ClearScope,
     JumpIfFalse,
+    GetCaptured,
+    MakeClosure,
     GreaterEqual,
 
     Invalid,
@@ -33,14 +35,15 @@ pub(crate) enum OpCode {
 impl OpCode {
     pub(crate) fn params(&self) -> u8 {
         match self {
+            Self::Constant | Self::SetLocal => 1,
             Self::Loop
-            | Self::Constant
-            | Self::SetLocal
             | Self::DefGlobal
             | Self::SetGlobal
-            | Self::ClearScope => 1,
-            Self::GetVar => 2,
-            Self::Call => 3,
+            | Self::ClearScope
+            | Self::GetCaptured
+            | Self::MakeClosure => 2,
+            Self::GetVar => 4,
+            Self::Call => 6,
             _ => 0,
         }
     }
@@ -74,7 +77,9 @@ impl From<u8> for OpCode {
             22 => Self::SetGlobal,
             23 => Self::ClearScope,
             24 => Self::JumpIfFalse,
-            25 => Self::GreaterEqual,
+            25 => Self::GetCaptured,
+            26 => Self::MakeClosure,
+            27 => Self::GreaterEqual,
             _ => Self::Invalid,
         }
     }
@@ -108,7 +113,9 @@ impl From<OpCode> for u8 {
             OpCode::SetGlobal => 22,
             OpCode::ClearScope => 23,
             OpCode::JumpIfFalse => 24,
-            OpCode::GreaterEqual => 25,
+            OpCode::GetCaptured => 25,
+            OpCode::MakeClosure => 26,
+            OpCode::GreaterEqual => 27,
             OpCode::Invalid => 255,
         }
     }

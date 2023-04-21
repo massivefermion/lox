@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
 
 use rand::{distributions::Alphanumeric, Rng};
@@ -24,10 +25,10 @@ impl<'a> Compiler<'a> {
     pub(crate) fn new(vm: &'a mut VM, function: Function, source: &'a str) -> Compiler<'a> {
         Compiler {
             vm,
-            functions: vec![function],
             errors: vec![],
             locals: vec![],
             scope_depth: 0,
+            functions: vec![function],
             scanner: Scanner::new(source).peekable(),
         }
     }
@@ -163,6 +164,16 @@ impl<'a> Compiler<'a> {
                     return;
                 }
 
+                let unique_locals: HashSet<String> =
+                    HashSet::from_iter(self.locals.iter().map(|(name, _)| name.clone()));
+                let captured: HashMap<String, usize> =
+                    HashMap::from_iter(unique_locals.iter().map(|name| {
+                        (
+                            name.clone(),
+                            self.resolve_local(name.clone()).unwrap() as usize,
+                        )
+                    }));
+
                 self.expect(Kind::LeftParen);
                 self.scope_depth += 1;
                 let mut arity = 0;
@@ -217,7 +228,7 @@ impl<'a> Compiler<'a> {
                     }
                 }
 
-                self.new_function(function_name, arity);
+                self.new_function(function_name, arity, captured);
                 self.compile_statement(false);
                 if let Some(false) = self.function().has_return() {
                     self.function().add_op(OpCode::Nil);
@@ -225,7 +236,11 @@ impl<'a> Compiler<'a> {
                 }
                 self.scope_depth -= 1;
                 let function = self.functions.pop().unwrap();
-                self.vm.add_function(self.scope_depth, function);
+                let address = self.vm.add_function(self.scope_depth, function);
+                if self.scope_depth > 0 {
+                    self.function().add_op(OpCode::MakeClosure);
+                    self.add_constant(Value::Number(address as f64));
+                }
             }
 
             None => self.errors.push(LoxError::new(
@@ -321,14 +336,24 @@ impl<'a> Compiler<'a> {
         self.function().patch_jump(else_jump_address);
     }
 
-    // TODO needs closures for full functionality!
+    // TODO closure usage is buggy!
     fn compile_while(&mut self) {
+        let unique_locals: HashSet<String> =
+            HashSet::from_iter(self.locals.iter().map(|(name, _)| name.clone()));
+        let captured: HashMap<String, usize> =
+            HashMap::from_iter(unique_locals.iter().map(|name| {
+                (
+                    name.clone(),
+                    self.resolve_local(name.clone()).unwrap() as usize,
+                )
+            }));
+
         let name: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
             .take(16)
             .map(char::from)
             .collect();
-        self.new_function(name.clone(), 0);
+        self.new_function(name.clone(), 0, captured);
 
         self.compile_expression();
 
@@ -591,9 +616,22 @@ impl<'a> Compiler<'a> {
                         self.add_constant(Value::Function(function));
                     }
 
+                    _ if self
+                        .functions
+                        .last()
+                        .unwrap()
+                        .captured()
+                        .contains_key(&name) =>
+                    {
+                        self.function().add_op(OpCode::GetCaptured);
+                        self.add_constant(token.value().unwrap());
+                    }
+
                     _ => {
                         let address = match address {
-                            Some(address) => Value::Number(address as f64),
+                            Some(address) => Value::Number(
+                                (address - self.shift_amount(self.scope_depth)) as f64,
+                            ),
                             None => Value::Nil,
                         };
 
@@ -647,6 +685,13 @@ impl<'a> Compiler<'a> {
             .map(|(index, _)| index as u128)
     }
 
+    fn shift_amount(&self, scope: u128) -> u128 {
+        match self.functions.len() {
+            1 => 0,
+            _ => self.locals.iter().filter(|item| item.1 < scope).count() as u128,
+        }
+    }
+
     fn function(&mut self) -> &mut Function {
         self.functions.last_mut().unwrap()
     }
@@ -657,8 +702,8 @@ impl<'a> Compiler<'a> {
         self.function().add_address(address);
     }
 
-    fn new_function(&mut self, name: String, arity: u128) {
-        let function = Function::new(name, arity);
+    fn new_function(&mut self, name: String, arity: u128, captured: HashMap<String, usize>) {
+        let function = Function::new(name, arity, captured);
         self.functions.push(function);
     }
 }

@@ -11,25 +11,29 @@ use crate::op::OpCode;
 use crate::value::Value;
 
 pub(crate) struct VM {
+    start_time: Instant,
     stack: Vec<Vec<Value>>,
     constants: Chunk<Value>,
+    stdout: Option<Vec<String>>,
     globals: HashMap<String, Value>,
     functions: Vec<(Function, u128)>,
     loops: HashMap<String, Function>,
-    start_time: Instant,
-    stdout: Option<Vec<String>>,
+    function_pointers: HashMap<String, String>,
+    closures: HashMap<String, HashMap<String, Value>>,
 }
 
 impl VM {
     pub(crate) fn new() -> VM {
         VM {
+            stdout: None,
+            functions: vec![],
             stack: vec![vec![]],
+            loops: HashMap::new(),
             constants: Chunk::new(),
             globals: HashMap::new(),
-            functions: vec![],
-            loops: HashMap::new(),
+            closures: HashMap::new(),
             start_time: Instant::now(),
-            stdout: None,
+            function_pointers: HashMap::new(),
         }
     }
 
@@ -245,6 +249,13 @@ impl VM {
                         return InterpretResult::RuntimeError;
                     };
 
+                    if let Value::Function(function) = value.clone() {
+                        if *variable_name != function.name() {
+                            self.function_pointers
+                                .insert(variable_name.clone(), function.name());
+                        };
+                    };
+
                     self.globals.insert(variable_name, value.clone());
                 }
 
@@ -264,7 +275,59 @@ impl VM {
 
                     if self.globals.insert(variable_name, value).is_none() {
                         return InterpretResult::RuntimeError;
+                    };
+                }
+
+                OpCode::MakeClosure => {
+                    iterator.next();
+                    let Some(address) = iterator.next() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(Value::Number(address)) = self.get_constant(address) else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some((function, _))=self.functions.get(*address as usize) else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    let resolved_captures: HashMap<String, Option<Value>> = HashMap::from_iter(
+                        function
+                            .captured()
+                            .iter()
+                            .map(|(name, address)| (name.clone(), self.stack_get(*address))),
+                    );
+
+                    if resolved_captures.iter().any(|(_, value)| value.is_none()) {
+                        return InterpretResult::RuntimeError;
                     }
+
+                    let closure: HashMap<String, Value> = HashMap::from_iter(
+                        resolved_captures
+                            .iter()
+                            .map(|(name, value)| (name.clone(), value.clone().unwrap())),
+                    );
+
+                    self.closures.insert(function.name(), closure);
+                }
+
+                OpCode::GetCaptured => {
+                    iterator.next();
+                    let Some(address) = iterator.next() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(Value::String(variable_name)) = self.get_constant(address) else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    let Some(closure) = self.closures.get(&function.name()) else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    let Some(value) = closure.get(variable_name) else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    self.stack_push(value.clone());
                 }
 
                 OpCode::GetVar => {
@@ -286,11 +349,12 @@ impl VM {
                     let Some(Value::String(variable_name)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
+                    let variable_name = variable_name.clone();
 
                     let value = match address_option.map(|address| self.stack_get(address as usize))
                     {
                         Some(Some(value)) => Some(value),
-                        None | Some(None) => self.globals.get(variable_name).cloned(),
+                        None | Some(None) => self.globals.get(&variable_name).cloned(),
                     };
 
                     if value.is_none() {
@@ -307,6 +371,7 @@ impl VM {
                     let Some(value) = self.stack_peek() else {
                         return InterpretResult::RuntimeError;
                     };
+
                     self.stack_insert(address, value);
                 }
 
@@ -353,6 +418,24 @@ impl VM {
                     let Some(lp) = self.get_loop(loop_name) else {
                         return InterpretResult::RuntimeError;
                     };
+
+                    let resolved_captures: HashMap<String, Option<Value>> = HashMap::from_iter(
+                        lp.captured()
+                            .iter()
+                            .map(|(name, address)| (name.clone(), self.stack_get(*address))),
+                    );
+
+                    if resolved_captures.iter().any(|(_, value)| value.is_none()) {
+                        return InterpretResult::RuntimeError;
+                    }
+
+                    let closure: HashMap<String, Value> = HashMap::from_iter(
+                        resolved_captures
+                            .iter()
+                            .map(|(name, value)| (name.clone(), value.clone().unwrap())),
+                    );
+
+                    self.closures.insert(lp.name(), closure);
 
                     self.stack.push(vec![]);
                     let name = lp.name().clone();
@@ -406,9 +489,20 @@ impl VM {
                         }
 
                         None => {
-                            let Some(function) = self.resolve_function(&function_name, scope) else {
-                                return InterpretResult::RuntimeError;
+                            let function = match self.resolve_function(&function_name, scope) {
+                                Some(function) => Some(function),
+                                None => match self.function_pointers.get(&function_name) {
+                                    Some(alias) => self.resolve_function(alias, scope),
+                                    None => None,
+                                },
                             };
+
+                            if function.is_none() {
+                                println!("FLAG A");
+                                return InterpretResult::RuntimeError;
+                            }
+
+                            let function = function.unwrap();
 
                             if function.arity() != args {
                                 return InterpretResult::RuntimeError;
@@ -452,8 +546,9 @@ impl VM {
         self.constants.add(constant)
     }
 
-    pub(crate) fn add_function(&mut self, scope_depth: u128, function: Function) {
+    pub(crate) fn add_function(&mut self, scope_depth: u128, function: Function) -> usize {
         self.functions.push((function, scope_depth));
+        self.functions.len() - 1
     }
 
     pub(crate) fn add_loop(&mut self, lp: Function) {
@@ -479,7 +574,14 @@ impl VM {
     }
 
     pub(crate) fn stack_get(&self, address: usize) -> Option<Value> {
-        self.stack.last().unwrap().get(address).cloned()
+        self.stack
+            .clone()
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .find(|(index, _)| *index == address)
+            .map(|(_, value)| value)
+        // self.stack.last().unwrap().get(address).cloned()
     }
 
     pub(crate) fn stack_insert(&mut self, address: usize, value: Value) {
@@ -568,13 +670,15 @@ mod test {
 
     fn new_for_test() -> super::VM {
         super::VM {
+            functions: vec![],
             stack: vec![vec![]],
+            stdout: Some(vec![]),
+            loops: HashMap::new(),
             constants: Chunk::new(),
             globals: HashMap::new(),
-            functions: vec![],
-            loops: HashMap::new(),
+            closures: HashMap::new(),
             start_time: Instant::now(),
-            stdout: Some(vec![]),
+            function_pointers: HashMap::new(),
         }
     }
 
@@ -737,14 +841,14 @@ mod test {
         assert_eq!(
             vm.interpret(
                 r#"
-                    fun creator() {
+                    fun make_closure() {
                         fun join(a, b) {
                             return a <> b;
                         }
                         return join;
                     }
-                    let join = creator();
-                    println(join("U-", 235));
+                    let closure = make_closure();
+                    println(closure("U-", 235));
                 "#
                 .to_string()
             ),
@@ -792,48 +896,50 @@ mod test {
         assert_eq!(vm.stdout.unwrap(), vec!["30", "4", "4.5", "false"]);
     }
 
-    // #[test]
-    // fn closure_local() {
-    //     let mut vm = new_for_test();
-    //     assert_eq!(
-    //         vm.interpret(
-    //             r#"
-    //                 let x = "global";
-    //                 fun outer() {
-    //                     let x = "local";
-    //                     fun inner() {
-    //                         println(x);
-    //                     }
-    //                     inner();
-    //                 }
-    //                 outer();
-    //             "#
-    //             .to_string()
-    //         ),
-    //         InterpretResult::Ok
-    //     );
-    //     assert_eq!(vm.stdout.unwrap(), vec!["local", "\n"]);
-    // }
+    #[test]
+    fn closure_local() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    let x = "global";
+                    let y = "global";
+                    fun outer() {
+                        let x = "local";
+                        fun inner() {
+                            println(x);
+                            println(y);
+                        }
+                        inner();
+                    }
+                    outer();
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout.unwrap(), vec!["local", "\n", "global", "\n"]);
+    }
 
-    // #[test]
-    // fn closure_parameter() {
-    //     let mut vm = new_for_test();
-    //     assert_eq!(
-    //         vm.interpret(
-    //             r#"
-    //                 fun creator(a) {
-    //                     fun join(b) {
-    //                         return a <> b;
-    //                     }
-    //                     return join;
-    //                 }
-    //                 let join = creator("U-");
-    //                 println(235);
-    //             "#
-    //             .to_string()
-    //         ),
-    //         InterpretResult::Ok
-    //     );
-    //     assert_eq!(vm.stdout.unwrap(), vec!["U-235", "\n"]);
-    // }
+    #[test]
+    fn closure_parameter() {
+        let mut vm = new_for_test();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun make_closure(a, b) {
+                        fun join(c) {
+                            return a <> b <> c;
+                        }
+                        return join;
+                    }
+                    let closure = make_closure("U", "-");
+                    println(closure(235));
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout.unwrap(), vec!["U-235", "\n"]);
+    }
 }
