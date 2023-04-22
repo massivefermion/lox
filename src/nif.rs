@@ -108,6 +108,7 @@ impl Nif for Print {
         None
     }
 
+    #[cfg(not(test))]
     fn call(&self, vm: &mut VM, args_count: usize) -> Result<(), InterpretResult> {
         let mut args = vec![];
 
@@ -115,27 +116,33 @@ impl Nif for Print {
             args.push(vm.stack_pop().unwrap());
         }
 
-        match vm.get_stdout() {
-            Some(stdout) => {
-                args.iter()
-                    .rev()
-                    .map(|item| {
-                        let item: String = item.clone().into();
-                        item
-                    })
-                    .for_each(|item| stdout.push(item));
-            }
+        args.iter()
+            .rev()
+            .map(|item| {
+                let item: String = item.clone().into();
+                item
+            })
+            .for_each(|item| print!("{}", item));
 
-            None => {
-                args.iter()
-                    .rev()
-                    .map(|item| {
-                        let item: String = item.clone().into();
-                        item
-                    })
-                    .for_each(|item| print!("{}", item));
-            }
-        };
+        Ok(())
+    }
+
+    #[cfg(test)]
+    fn call(&self, vm: &mut VM, args_count: usize) -> Result<(), InterpretResult> {
+        let mut args = vec![];
+
+        for _ in 0..args_count {
+            args.push(vm.stack_pop().unwrap());
+        }
+
+        args.iter()
+            .rev()
+            .map(|item| {
+                let item: String = item.clone().into();
+                item
+            })
+            .for_each(|item| vm.get_stdout().push(item));
+
         Ok(())
     }
 }
@@ -174,17 +181,30 @@ impl Nif for PrintLn {
         None
     }
 
+    #[cfg(not(test))]
     fn call(&self, vm: &mut VM, args_count: usize) -> Result<(), InterpretResult> {
         let _ = Print.call(vm, args_count);
-        match vm.get_stdout() {
-            Some(stdout) => {
-                stdout.push("\n".to_string());
-            }
+        println!();
+        Ok(())
+    }
 
-            None => {
-                println!();
-            }
-        };
+    #[cfg(test)]
+    fn call(&self, vm: &mut VM, args_count: usize) -> Result<(), InterpretResult> {
+        let mut args = vec![];
+
+        for _ in 0..args_count {
+            args.push(vm.stack_pop().unwrap());
+        }
+
+        args.iter()
+            .rev()
+            .map(|item| {
+                let item: String = item.clone().into();
+                item
+            })
+            .for_each(|item| vm.get_stdout().push(item));
+        vm.get_stdout().push("\n".to_string());
+
         Ok(())
     }
 }

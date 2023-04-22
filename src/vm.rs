@@ -11,10 +11,12 @@ use crate::op::OpCode;
 use crate::value::Value;
 
 pub(crate) struct VM {
+    #[cfg(test)]
+    stdout: Vec<String>,
+
     start_time: Instant,
     stack: Vec<Vec<Value>>,
     constants: Chunk<Value>,
-    stdout: Option<Vec<String>>,
     globals: HashMap<String, Value>,
     functions: Vec<(Function, u128)>,
     loops: HashMap<String, Function>,
@@ -25,7 +27,9 @@ pub(crate) struct VM {
 impl VM {
     pub(crate) fn new() -> VM {
         VM {
-            stdout: None,
+            #[cfg(test)]
+            stdout: vec![],
+
             functions: vec![],
             stack: vec![vec![]],
             loops: HashMap::new(),
@@ -68,8 +72,12 @@ impl VM {
                         Some(value) => value,
                         None => Value::Nil,
                     };
-                    self.stack.pop();
+
+                    if !function.is_loop() {
+                        self.stack.pop();
+                    }
                     self.stack_push(return_value);
+
                     return InterpretResult::Ok;
                 }
 
@@ -309,6 +317,8 @@ impl VM {
                 }
 
                 OpCode::MakeClosure => {
+                    let parent_closure = self.closures.get(&function.name());
+
                     iterator.next();
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
@@ -324,14 +334,26 @@ impl VM {
                         function
                             .captured()
                             .iter()
-                            .map(|(name, address)| (name.clone(), self.stack_get(*address))),
+                            .map(|(name, address)| (name.clone(), self.stack_get(*address)))
+                            .map(|(name, value)| {
+                                (
+                                    name.clone(),
+                                    match value {
+                                        Some(value) => Some(value),
+                                        None => match parent_closure {
+                                            Some(closure) => closure.get(&name).cloned(),
+                                            None => None,
+                                        },
+                                    },
+                                )
+                            }),
                     );
 
                     if resolved_captures.iter().any(|(_, value)| value.is_none()) {
                         return InterpretResult::RuntimeError;
                     }
 
-                    let closure: HashMap<String, Value> = HashMap::from_iter(
+                    let closure = HashMap::from_iter(
                         resolved_captures
                             .iter()
                             .map(|(name, value)| (name.clone(), value.clone().unwrap())),
@@ -462,7 +484,7 @@ impl VM {
                     self.stack.push(vec![]);
                     let name = lp.name().clone();
                     match self.run(lp) {
-                        InterpretResult::Ok => self.stack.pop(),
+                        InterpretResult::Ok => (),
                         _ => return InterpretResult::RuntimeError,
                     };
                     self.remove_loop(&name);
@@ -505,7 +527,7 @@ impl VM {
                             }
 
                             match nif.call(self, args as usize) {
-                                Ok(()) => (),
+                                Ok(_) => (),
                                 _ => return InterpretResult::RuntimeError,
                             }
                         }
@@ -595,13 +617,6 @@ impl VM {
     }
 
     pub(crate) fn stack_get(&self, address: usize) -> Option<Value> {
-        // self.stack
-        //     .clone()
-        //     .into_iter()
-        //     .flatten()
-        //     .enumerate()
-        //     .find(|(index, _)| *index == address)
-        //     .map(|(_, value)| value)
         self.stack.last().unwrap().get(address).cloned()
     }
 
@@ -622,8 +637,9 @@ impl VM {
         }
     }
 
-    pub(crate) fn get_stdout(&mut self) -> Option<&mut Vec<String>> {
-        self.stdout.as_mut()
+    #[cfg(test)]
+    pub(crate) fn get_stdout(&mut self) -> &mut Vec<String> {
+        &mut self.stdout
     }
 
     fn get_function_from_functions(&self, name: &String, given_scope: u128) -> Option<Function> {
@@ -683,39 +699,22 @@ impl VM {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
-    use std::time::Instant;
-
-    use crate::chunk::Chunk;
     use crate::error::InterpretResult;
-
-    fn new_for_test() -> super::VM {
-        super::VM {
-            functions: vec![],
-            stack: vec![vec![]],
-            stdout: Some(vec![]),
-            loops: HashMap::new(),
-            constants: Chunk::new(),
-            globals: HashMap::new(),
-            closures: HashMap::new(),
-            start_time: Instant::now(),
-            function_pointers: HashMap::new(),
-        }
-    }
+    use crate::vm::VM;
 
     #[test]
     fn hello_world() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(r#"println("Hello World!");"#.to_string()),
             InterpretResult::Ok
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["Hello World!", "\n"]);
+        assert_eq!(vm.stdout, vec!["Hello World!", "\n"]);
     }
 
     #[test]
     fn scope() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(
                 r#"
@@ -731,12 +730,12 @@ mod test {
             ),
             InterpretResult::RuntimeError
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["global", "local", "\n"]);
+        assert_eq!(vm.stdout, vec!["global", "local", "\n"]);
     }
 
     #[test]
     fn nested_scope() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(
                 r#"
@@ -756,12 +755,12 @@ mod test {
             ),
             InterpretResult::RuntimeError
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["global", "local1", "local2", "\n"]);
+        assert_eq!(vm.stdout, vec!["global", "local1", "local2", "\n"]);
     }
 
     #[test]
     fn simple_function() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(
                 r#"
@@ -774,12 +773,12 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["5"]);
+        assert_eq!(vm.stdout, vec!["5"]);
     }
 
     #[test]
     fn function_with_no_return() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(
                 r#"
@@ -792,12 +791,12 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["5", "\n", "nil"]);
+        assert_eq!(vm.stdout, vec!["5", "\n", "nil"]);
     }
 
     #[test]
     fn inner_function() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(
                 r#"
@@ -813,12 +812,12 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["inside", "\n"]);
+        assert_eq!(vm.stdout, vec!["inside", "\n"]);
     }
 
     #[test]
     fn inner_function_only_seen_inside() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(
                 r#"
@@ -838,7 +837,7 @@ mod test {
 
     #[test]
     fn local_variable() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(
                 r#"
@@ -853,12 +852,12 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["local", "\n"]);
+        assert_eq!(vm.stdout, vec!["local", "\n"]);
     }
 
     #[test]
     fn first_class_function() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(
                 r#"
@@ -875,12 +874,12 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["U-235", "\n"]);
+        assert_eq!(vm.stdout, vec!["U-235", "\n"]);
     }
 
     #[test]
     fn global_while() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(
                 r#"
@@ -896,12 +895,12 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["2", "5", "1", "4", "0", "3",]);
+        assert_eq!(vm.stdout, vec!["2", "5", "1", "4", "0", "3",]);
     }
 
     #[test]
     fn local_while() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(
                 r#"
@@ -919,12 +918,12 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["2", "5", "1", "4", "0", "3",]);
+        assert_eq!(vm.stdout, vec!["2", "5", "1", "4", "0", "3",]);
     }
 
     #[test]
     fn parse_test() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(
                 r#"
@@ -937,12 +936,12 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["30", "4", "4.5", "false"]);
+        assert_eq!(vm.stdout, vec!["30", "4", "4.5", "false"]);
     }
 
     #[test]
     fn closure_local() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(
                 r#"
@@ -962,12 +961,12 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["local", "\n", "global", "\n"]);
+        assert_eq!(vm.stdout, vec!["local", "\n", "global", "\n"]);
     }
 
     #[test]
     fn closure_parameter() {
-        let mut vm = new_for_test();
+        let mut vm = VM::new();
         assert_eq!(
             vm.interpret(
                 r#"
@@ -984,6 +983,52 @@ mod test {
             ),
             InterpretResult::Ok
         );
-        assert_eq!(vm.stdout.unwrap(), vec!["U-235", "\n"]);
+        assert_eq!(vm.stdout, vec!["U-235", "\n"]);
+    }
+
+    #[test]
+    fn return_in_while() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun make_closure() {
+                        while true {
+                            let i = "i";
+                            fun show() print(i); 
+                            return show;
+                        }
+                    }
+                    let closure = make_closure();
+                    closure();
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["i"]);
+    }
+
+    #[test]
+    fn closure_in_while() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun make_closures() {
+                        let i = 5;
+                        while i {
+                            fun closure() { print(i); }
+                            i = i - 1;
+                            closure();
+                        }
+                    }
+                    make_closures();
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["5", "4", "3", "2", "1"]);
     }
 }

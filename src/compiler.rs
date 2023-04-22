@@ -68,6 +68,24 @@ impl<'a> Compiler<'a> {
                     self.scanner.next();
                     self.compile_expression();
                     self.expect(Kind::Semicolon);
+
+                    if self.function().is_loop() {
+                        loop {
+                            self.scope_depth -= 1;
+                            self.function().add_op(OpCode::Return);
+                            let function = self.functions.pop().unwrap();
+                            self.locals.pop();
+                            self.vm.add_loop(function.clone());
+
+                            self.function().add_op(OpCode::Loop);
+                            self.add_constant(Value::String(function.name()));
+
+                            if !self.function().is_loop() {
+                                break;
+                            }
+                        }
+                    }
+
                     self.function().add_op(OpCode::Return);
                     self.function().already_returns();
                 }
@@ -165,15 +183,20 @@ impl<'a> Compiler<'a> {
                     return;
                 }
 
+                let mut captured = self.function().captured();
                 let unique_locals: HashSet<String> =
                     HashSet::from_iter(self.locals().iter().map(|(name, _)| name.clone()));
-                let captured: HashMap<String, usize> =
-                    HashMap::from_iter(unique_locals.iter().map(|name| {
+                unique_locals
+                    .iter()
+                    .map(|name| {
                         (
                             name.clone(),
                             self.resolve_local(name.clone()).unwrap() as usize,
                         )
-                    }));
+                    })
+                    .for_each(|(name, address)| {
+                        captured.insert(name, address);
+                    });
 
                 self.expect(Kind::LeftParen);
                 self.scope_depth += 1;
@@ -343,7 +366,6 @@ impl<'a> Compiler<'a> {
         self.function().patch_jump(else_jump_address);
     }
 
-    // TODO closure usage is buggy!
     fn compile_while(&mut self) {
         let unique_locals: HashSet<String> =
             HashSet::from_iter(self.locals().iter().map(|(name, _)| name.clone()));
@@ -363,7 +385,7 @@ impl<'a> Compiler<'a> {
 
         self.scope_depth += 1;
         self.locals.push(vec![]);
-        self.new_function(name.clone(), 0, captured);
+        self.new_loop(name.clone(), 0, captured);
 
         self.compile_expression();
 
@@ -371,19 +393,22 @@ impl<'a> Compiler<'a> {
         self.function().add_op(OpCode::Pop);
 
         self.compile_statement(false, false);
-        self.function().add_op(OpCode::Loop);
-        self.add_constant(Value::String(name.clone()));
 
-        self.function().patch_jump(jump_address);
-        self.function().add_op(OpCode::Pop);
+        if self.function().is_loop() {
+            self.function().add_op(OpCode::Loop);
+            self.add_constant(Value::String(name.clone()));
 
-        self.scope_depth -= 1;
-        let function = self.functions.pop().unwrap();
-        self.locals.pop();
-        self.vm.add_loop(function);
+            self.function().patch_jump(jump_address);
+            self.function().add_op(OpCode::Pop);
 
-        self.function().add_op(OpCode::Loop);
-        self.add_constant(Value::String(name));
+            self.scope_depth -= 1;
+            let function = self.functions.pop().unwrap();
+            self.locals.pop();
+            self.vm.add_loop(function);
+
+            self.function().add_op(OpCode::Loop);
+            self.add_constant(Value::String(name));
+        }
     }
 
     fn compile_expression(&mut self) {
@@ -548,6 +573,7 @@ impl<'a> Compiler<'a> {
             Some(token) if token.kind() == Kind::Identifier => {
                 let name: String = token.value().unwrap().into();
                 let address = self.resolve_local(name.clone());
+
                 match self.scanner.peek() {
                     Some(token) if token.kind() == Kind::Equal && can_assign => {
                         self.scanner.next();
@@ -724,6 +750,11 @@ impl<'a> Compiler<'a> {
 
     fn new_function(&mut self, name: String, arity: u128, captured: HashMap<String, usize>) {
         let function = Function::new(name, arity, captured);
+        self.functions.push(function);
+    }
+
+    fn new_loop(&mut self, name: String, arity: u128, captured: HashMap<String, usize>) {
+        let function = Function::new_loop(name, arity, captured);
         self.functions.push(function);
     }
 }

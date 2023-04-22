@@ -8,6 +8,7 @@ use crate::op::OpCode;
 pub(crate) struct Function {
     arity: u128,
     name: String,
+    is_loop: bool,
     codes: Chunk<usize>,
     has_return: Option<bool>,
     captured: HashMap<String, usize>,
@@ -19,6 +20,7 @@ impl Function {
             name,
             arity,
             captured,
+            is_loop: false,
             codes: Chunk::new(),
             has_return: Some(false),
         }
@@ -28,9 +30,25 @@ impl Function {
         Function {
             name,
             arity: 0,
+            is_loop: false,
             has_return: None,
             codes: Chunk::new(),
             captured: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn new_loop(
+        name: String,
+        arity: u128,
+        captured: HashMap<String, usize>,
+    ) -> Function {
+        Function {
+            name,
+            arity,
+            captured,
+            is_loop: true,
+            codes: Chunk::new(),
+            has_return: Some(false),
         }
     }
 
@@ -72,6 +90,10 @@ impl Function {
 
     pub(crate) fn captured(&self) -> HashMap<String, usize> {
         self.captured.clone()
+    }
+
+    pub(crate) fn is_loop(&self) -> bool {
+        self.is_loop
     }
 }
 
