@@ -217,10 +217,11 @@ impl Iterator for Scanner<'_> {
                     self.source.next();
                 }
 
-                let peeked = self.source.peek();
-                if peeked.is_some() && ['!', '?'].contains(peeked.unwrap()) {
-                    self.storage.push(*peeked.unwrap());
-                    self.source.next();
+                if let Some(character) = self.source.peek() {
+                    if ['!', '?'].contains(character) {
+                        self.storage.push(*character);
+                        self.source.next();
+                    }
                 }
 
                 let token = if let Some(keyword_kind) = Kind::keyword_equivalent(&self.storage) {
