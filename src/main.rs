@@ -4,6 +4,7 @@ use std::io::Read;
 
 mod chunk;
 mod compiler;
+mod r#enum;
 mod error;
 mod function;
 mod nif;

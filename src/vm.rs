@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env::var_os;
 use std::time::Instant;
 
@@ -20,6 +20,7 @@ pub(crate) struct VM {
     globals: HashMap<String, Value>,
     functions: Vec<(Function, u128)>,
     loops: HashMap<String, Function>,
+    enums: HashMap<String, HashSet<String>>,
     function_pointers: HashMap<String, String>,
     closures: HashMap<String, HashMap<String, Value>>,
 }
@@ -33,6 +34,7 @@ impl VM {
             functions: vec![],
             stack: vec![vec![]],
             loops: HashMap::new(),
+            enums: HashMap::new(),
             constants: Chunk::new(),
             globals: HashMap::new(),
             closures: HashMap::new(),
@@ -596,6 +598,14 @@ impl VM {
 
     pub(crate) fn add_loop(&mut self, lp: Function) {
         self.loops.insert(lp.name(), lp);
+    }
+
+    pub(crate) fn add_enum(&mut self, name: String, options: HashSet<String>) {
+        self.enums.insert(name, options);
+    }
+
+    pub(crate) fn enum_exists(&self, name: &String) -> bool {
+        self.enums.contains_key(name)
     }
 
     pub(crate) fn function_exists(&self, scope_depth: u128, name: &String) -> bool {

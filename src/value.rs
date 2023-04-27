@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::fmt::Display;
 
 use crate::function::Function;
+use crate::r#enum::EnumOption;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Value {
@@ -10,11 +11,13 @@ pub(crate) enum Value {
     Boolean(bool),
     String(String),
     Function(Function),
+    EnumOption(EnumOption),
 }
 
 #[derive(PartialEq)]
 enum Type {
     Nil,
+    Enum,
     Number,
     String,
     Boolean,
@@ -28,6 +31,7 @@ impl Value {
             Self::Number(_) => Type::Number,
             Self::String(_) => Type::String,
             Self::Boolean(_) => Type::Boolean,
+            Self::EnumOption(_) => Type::Enum,
             Self::Function(_) => Type::Function,
         }
     }
@@ -57,6 +61,7 @@ impl From<Value> for String {
             Value::Boolean(true) => "true".to_string(),
             Value::Boolean(false) => "false".to_string(),
             Value::Number(value) => value.to_string(),
+            Value::EnumOption(value) => value.into(),
             Value::Function(value) => value.to_string(),
         }
     }

@@ -189,14 +189,18 @@ impl Nif for TypeOf {
         let arg = vm.stack_pop().unwrap();
 
         let value_type = match arg {
-            Value::Nil => "nil",
-            Value::String(_) => "string",
-            Value::Number(_) => "number",
-            Value::Boolean(_) => "boolean",
-            Value::Function(_) => "function",
+            Value::Nil => "nil".to_string(),
+            Value::String(_) => "string".to_string(),
+            Value::Number(_) => "number".to_string(),
+            Value::Boolean(_) => "boolean".to_string(),
+            Value::Function(_) => "function".to_string(),
+            Value::EnumOption(enum_option) => {
+                let type_of = enum_option.type_of();
+                format!("enum#{}", type_of)
+            }
         };
 
-        vm.stack_push(Value::String(value_type.into()));
+        vm.stack_push(Value::String(value_type));
         Ok(())
     }
 }

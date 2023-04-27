@@ -64,6 +64,11 @@ impl<'a> Compiler<'a> {
                     self.compile_fun();
                 }
 
+                Kind::Enum => {
+                    self.scanner.next();
+                    self.compile_enum();
+                }
+
                 Kind::Return => {
                     self.scanner.next();
                     self.compile_expression();
@@ -92,6 +97,53 @@ impl<'a> Compiler<'a> {
 
                 _ => self.compile_statement(true, true),
             },
+
+            None => self.errors.push(LoxError::new(
+                "Unexpected end of script",
+                ErrorContext::Compile,
+                None,
+            )),
+        }
+    }
+
+    fn compile_enum(&mut self) {
+        match self.scanner.next() {
+            Some(token) if token.kind() == Kind::Identifier => {
+                let name: String = token.value().unwrap().into();
+
+                self.expect(Kind::LeftBrace);
+                let mut options = HashSet::new();
+                loop {
+                    match self.scanner.next() {
+                        Some(token) if token.kind() == Kind::Identifier => {
+                            let option: String = token.value().unwrap().into();
+                            self.expect(Kind::Semicolon);
+                            options.insert(option);
+                        }
+
+                        Some(token) if token.kind() == Kind::RightBrace => break,
+
+                        Some(token) => self.errors.push(LoxError::new(
+                            format!("unexpected {:?} #1", token).as_str(),
+                            ErrorContext::Compile,
+                            None,
+                        )),
+
+                        None => self.errors.push(LoxError::new(
+                            "Unexpected end of script",
+                            ErrorContext::Compile,
+                            None,
+                        )),
+                    }
+                }
+                self.vm.add_enum(name, options);
+            }
+
+            Some(token) => self.errors.push(LoxError::new(
+                format!("unexpected {:?} #1", token).as_str(),
+                ErrorContext::Compile,
+                None,
+            )),
 
             None => self.errors.push(LoxError::new(
                 "Unexpected end of script",
@@ -154,7 +206,7 @@ impl<'a> Compiler<'a> {
             }
 
             Some(token) => self.errors.push(LoxError::new(
-                format!("unexpected {:?} #1", token).as_str(),
+                format!("unexpected {:?} #2", token).as_str(),
                 ErrorContext::Compile,
                 None,
             )),
@@ -229,7 +281,7 @@ impl<'a> Compiler<'a> {
                                 )),
 
                                 _ => self.errors.push(LoxError::new(
-                                    format!("unexpected {:?} #1", token).as_str(),
+                                    format!("unexpected {:?} #3", token).as_str(),
                                     ErrorContext::Compile,
                                     None,
                                 )),
@@ -247,7 +299,7 @@ impl<'a> Compiler<'a> {
                         )),
 
                         _ => self.errors.push(LoxError::new(
-                            format!("unexpected {:?} #1", token).as_str(),
+                            format!("unexpected {:?} #4", token).as_str(),
                             ErrorContext::Compile,
                             None,
                         )),
@@ -277,7 +329,7 @@ impl<'a> Compiler<'a> {
             )),
 
             Some(token) => self.errors.push(LoxError::new(
-                format!("unexpected {:?} #1", token).as_str(),
+                format!("unexpected {:?} #5", token).as_str(),
                 ErrorContext::Compile,
                 None,
             )),
@@ -557,7 +609,7 @@ impl<'a> Compiler<'a> {
                     }
 
                     Some(_) => self.errors.push(LoxError::new(
-                        format!("unexpected {:?} #2", token).as_str(),
+                        format!("unexpected {:?} #6", token).as_str(),
                         ErrorContext::Compile,
                         None,
                     )),
@@ -602,6 +654,10 @@ impl<'a> Compiler<'a> {
                         }
                     }
 
+                    Some(token) if token.kind() == Kind::Dot => {
+                        self.scanner.next();
+                    }
+
                     Some(token) if token.kind() == Kind::Equal => {
                         self.scanner.next();
                         self.errors.push(LoxError::new(
@@ -642,7 +698,7 @@ impl<'a> Compiler<'a> {
                                         )),
 
                                         _ => self.errors.push(LoxError::new(
-                                            format!("unexpected {:?} #1", token).as_str(),
+                                            format!("unexpected {:?} #7", token).as_str(),
                                             ErrorContext::Compile,
                                             None,
                                         )),
@@ -692,7 +748,7 @@ impl<'a> Compiler<'a> {
             }
 
             Some(token) => self.errors.push(LoxError::new(
-                format!("unexpected {:?} #3", token).as_str(),
+                format!("unexpected {:?} #8", token).as_str(),
                 ErrorContext::Compile,
                 None,
             )),
@@ -712,7 +768,7 @@ impl<'a> Compiler<'a> {
             }
 
             Some(token) => self.errors.push(LoxError::new(
-                format!("unexpected {:?} #4", token).as_str(),
+                format!("unexpected {:?} #9", token).as_str(),
                 ErrorContext::Compile,
                 None,
             )),
