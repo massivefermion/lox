@@ -1,4 +1,3 @@
-use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
 
 use rand::{distributions::Alphanumeric, Rng};
@@ -183,21 +182,6 @@ impl<'a> Compiler<'a> {
                     return;
                 }
 
-                let mut captured = self.function().captured();
-                let unique_locals: HashSet<String> =
-                    HashSet::from_iter(self.locals().iter().map(|(name, _)| name.clone()));
-                unique_locals
-                    .iter()
-                    .map(|name| {
-                        (
-                            name.clone(),
-                            self.resolve_local(name.clone()).unwrap() as usize,
-                        )
-                    })
-                    .for_each(|(name, address)| {
-                        captured.insert(name, address);
-                    });
-
                 self.expect(Kind::LeftParen);
                 self.scope_depth += 1;
                 self.locals.push(vec![]);
@@ -254,7 +238,7 @@ impl<'a> Compiler<'a> {
                     }
                 }
 
-                self.new_function(function_name, arity, captured);
+                self.new_function(function_name, arity);
                 self.compile_statement(false, true);
                 if let Some(false) = self.function().has_return() {
                     self.function().add_op(OpCode::Nil);
@@ -367,16 +351,6 @@ impl<'a> Compiler<'a> {
     }
 
     fn compile_while(&mut self) {
-        let unique_locals: HashSet<String> =
-            HashSet::from_iter(self.locals().iter().map(|(name, _)| name.clone()));
-        let captured: HashMap<String, usize> =
-            HashMap::from_iter(unique_locals.iter().map(|name| {
-                (
-                    name.clone(),
-                    self.resolve_local(name.clone()).unwrap() as usize,
-                )
-            }));
-
         let name: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
             .take(16)
@@ -385,7 +359,7 @@ impl<'a> Compiler<'a> {
 
         self.scope_depth += 1;
         self.locals.push(vec![]);
-        self.new_loop(name.clone(), 0, captured);
+        self.new_loop(name.clone(), 0);
 
         self.compile_expression();
 
@@ -584,17 +558,16 @@ impl<'a> Compiler<'a> {
                                 self.function().add_address(address as usize);
                             }
 
-                            None if self
-                                .functions
-                                .last()
-                                .unwrap()
-                                .captured()
-                                .contains_key(&name) =>
-                            {
-                                self.function().add_op(OpCode::SetCaptured);
-                                self.add_constant(Value::String(name));
-                            }
-
+                            // None if self
+                            //     .functions
+                            //     .last()
+                            //     .unwrap()
+                            //     .captured()
+                            //     .contains_key(&name) =>
+                            // {
+                            //     self.function().add_op(OpCode::SetCaptured);
+                            //     self.add_constant(Value::String(name));
+                            // }
                             None => {
                                 self.function().add_op(OpCode::SetGlobal);
                                 self.add_constant(Value::String(name));
@@ -668,17 +641,16 @@ impl<'a> Compiler<'a> {
                         self.function().add_address(address.unwrap() as usize);
                     }
 
-                    _ if self
-                        .functions
-                        .last()
-                        .unwrap()
-                        .captured()
-                        .contains_key(&name) =>
-                    {
-                        self.function().add_op(OpCode::GetCaptured);
-                        self.add_constant(token.value().unwrap());
-                    }
-
+                    // _ if self
+                    //     .functions
+                    //     .last()
+                    //     .unwrap()
+                    //     .captured()
+                    //     .contains_key(&name) =>
+                    // {
+                    //     self.function().add_op(OpCode::GetCaptured);
+                    //     self.add_constant(token.value().unwrap());
+                    // }
                     _ if self.vm.function_exists(self.scope_depth, &name) => {
                         let function = self.vm.resolve_function(&name, self.scope_depth).unwrap();
                         self.add_constant(Value::Function(function));
@@ -748,13 +720,13 @@ impl<'a> Compiler<'a> {
         self.function().add_address(address);
     }
 
-    fn new_function(&mut self, name: String, arity: u128, captured: HashMap<String, usize>) {
-        let function = Function::new(name, arity, captured);
+    fn new_function(&mut self, name: String, arity: u128) {
+        let function = Function::new(name, arity);
         self.functions.push(function);
     }
 
-    fn new_loop(&mut self, name: String, arity: u128, captured: HashMap<String, usize>) {
-        let function = Function::new_loop(name, arity, captured);
+    fn new_loop(&mut self, name: String, arity: u128) {
+        let function = Function::new_loop(name, arity);
         self.functions.push(function);
     }
 }

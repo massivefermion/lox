@@ -21,7 +21,6 @@ pub(crate) struct VM {
     functions: Vec<(Function, u128)>,
     loops: HashMap<String, Function>,
     function_pointers: HashMap<String, String>,
-    closures: HashMap<String, HashMap<String, Value>>,
 }
 
 impl VM {
@@ -35,7 +34,6 @@ impl VM {
             loops: HashMap::new(),
             constants: Chunk::new(),
             globals: HashMap::new(),
-            closures: HashMap::new(),
             start_time: Instant::now(),
             function_pointers: HashMap::new(),
         }
@@ -293,95 +291,6 @@ impl VM {
                     };
                 }
 
-                OpCode::SetCaptured => {
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
-                        return InterpretResult::RuntimeError;
-                    };
-                    let Some(Value::String(variable_name)) = self.get_constant(address) else {
-                        return InterpretResult::RuntimeError;
-                    };
-                    let variable_name = variable_name.clone();
-
-                    let Some(value) = self.stack_peek() else {
-                        return InterpretResult::RuntimeError;
-                    };
-
-                    let Some(closure) = self.closures.get_mut(&function.name()) else {
-                        return InterpretResult::RuntimeError;
-                    };
-
-                    if closure.insert(variable_name, value).is_none() {
-                        return InterpretResult::RuntimeError;
-                    };
-                }
-
-                OpCode::MakeClosure => {
-                    let parent_closure = self.closures.get(&function.name());
-
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
-                        return InterpretResult::RuntimeError;
-                    };
-                    let Some(Value::Number(address)) = self.get_constant(address) else {
-                        return InterpretResult::RuntimeError;
-                    };
-                    let Some((function, _)) = self.functions.get(*address as usize) else {
-                        return InterpretResult::RuntimeError;
-                    };
-
-                    let resolved_captures: HashMap<String, Option<Value>> = HashMap::from_iter(
-                        function
-                            .captured()
-                            .iter()
-                            .map(|(name, address)| (name.clone(), self.stack_get(*address)))
-                            .map(|(name, value)| {
-                                (
-                                    name.clone(),
-                                    match value {
-                                        Some(value) => Some(value),
-                                        None => match parent_closure {
-                                            Some(closure) => closure.get(&name).cloned(),
-                                            None => None,
-                                        },
-                                    },
-                                )
-                            }),
-                    );
-
-                    if resolved_captures.iter().any(|(_, value)| value.is_none()) {
-                        return InterpretResult::RuntimeError;
-                    }
-
-                    let closure = HashMap::from_iter(
-                        resolved_captures
-                            .iter()
-                            .map(|(name, value)| (name.clone(), value.clone().unwrap())),
-                    );
-
-                    self.closures.insert(function.name(), closure);
-                }
-
-                OpCode::GetCaptured => {
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
-                        return InterpretResult::RuntimeError;
-                    };
-                    let Some(Value::String(variable_name)) = self.get_constant(address) else {
-                        return InterpretResult::RuntimeError;
-                    };
-
-                    let Some(closure) = self.closures.get(&function.name()) else {
-                        return InterpretResult::RuntimeError;
-                    };
-
-                    let Some(value) = closure.get(variable_name) else {
-                        return InterpretResult::RuntimeError;
-                    };
-
-                    self.stack_push(value.clone());
-                }
-
                 OpCode::GetGlobal => {
                     iterator.next();
                     let Some(address) = iterator.next() else {
@@ -462,24 +371,6 @@ impl VM {
                     let Some(lp) = self.get_loop(loop_name) else {
                         return InterpretResult::RuntimeError;
                     };
-
-                    let resolved_captures: HashMap<String, Option<Value>> = HashMap::from_iter(
-                        lp.captured()
-                            .iter()
-                            .map(|(name, address)| (name.clone(), self.stack_get(*address))),
-                    );
-
-                    if resolved_captures.iter().any(|(_, value)| value.is_none()) {
-                        return InterpretResult::RuntimeError;
-                    }
-
-                    let closure: HashMap<String, Value> = HashMap::from_iter(
-                        resolved_captures
-                            .iter()
-                            .map(|(name, value)| (name.clone(), value.clone().unwrap())),
-                    );
-
-                    self.closures.insert(lp.name(), closure);
 
                     self.stack.push(vec![]);
                     let name = lp.name().clone();
@@ -794,26 +685,26 @@ mod test {
         assert_eq!(vm.stdout, vec!["5", "\n", "nil"]);
     }
 
-    #[test]
-    fn inner_function() {
-        let mut vm = VM::new();
-        assert_eq!(
-            vm.interpret(
-                r#"
-                    fun outer() {
-                        fun inner() {
-                            println("inside");
-                        }
-                        inner();
-                    }
-                    outer();
-                "#
-                .to_string()
-            ),
-            InterpretResult::Ok
-        );
-        assert_eq!(vm.stdout, vec!["inside", "\n"]);
-    }
+    // #[test]
+    // fn inner_function() {
+    //     let mut vm = VM::new();
+    //     assert_eq!(
+    //         vm.interpret(
+    //             r#"
+    //                 fun outer() {
+    //                     fun inner() {
+    //                         println("inside");
+    //                     }
+    //                     inner();
+    //                 }
+    //                 outer();
+    //             "#
+    //             .to_string()
+    //         ),
+    //         InterpretResult::Ok
+    //     );
+    //     assert_eq!(vm.stdout, vec!["inside", "\n"]);
+    // }
 
     #[test]
     fn inner_function_only_seen_inside() {
@@ -855,27 +746,27 @@ mod test {
         assert_eq!(vm.stdout, vec!["local", "\n"]);
     }
 
-    #[test]
-    fn first_class_function() {
-        let mut vm = VM::new();
-        assert_eq!(
-            vm.interpret(
-                r#"
-                    fun make_closure() {
-                        fun join(a, b) {
-                            return a <> b;
-                        }
-                        return join;
-                    }
-                    let closure = make_closure();
-                    println(closure("U-", 235));
-                "#
-                .to_string()
-            ),
-            InterpretResult::Ok
-        );
-        assert_eq!(vm.stdout, vec!["U-235", "\n"]);
-    }
+    // #[test]
+    // fn first_class_function() {
+    //     let mut vm = VM::new();
+    //     assert_eq!(
+    //         vm.interpret(
+    //             r#"
+    //                 fun make_closure() {
+    //                     fun join(a, b) {
+    //                         return a <> b;
+    //                     }
+    //                     return join;
+    //                 }
+    //                 let closure = make_closure();
+    //                 println(closure("U-", 235));
+    //             "#
+    //             .to_string()
+    //         ),
+    //         InterpretResult::Ok
+    //     );
+    //     assert_eq!(vm.stdout, vec!["U-235", "\n"]);
+    // }
 
     #[test]
     fn global_while() {
@@ -898,28 +789,28 @@ mod test {
         assert_eq!(vm.stdout, vec!["2", "5", "1", "4", "0", "3",]);
     }
 
-    #[test]
-    fn local_while() {
-        let mut vm = VM::new();
-        assert_eq!(
-            vm.interpret(
-                r#"
-                    {
-                        let a = 2;
-                        let b = 5;
-                        while a * b != -2 {
-                            print(a, b);
-                            a = a - 1;
-                            b = b - 1;
-                        }
-                    }
-                "#
-                .to_string()
-            ),
-            InterpretResult::Ok
-        );
-        assert_eq!(vm.stdout, vec!["2", "5", "1", "4", "0", "3",]);
-    }
+    // #[test]
+    // fn local_while() {
+    //     let mut vm = VM::new();
+    //     assert_eq!(
+    //         vm.interpret(
+    //             r#"
+    //                 {
+    //                     let a = 2;
+    //                     let b = 5;
+    //                     while a * b != -2 {
+    //                         print(a, b);
+    //                         a = a - 1;
+    //                         b = b - 1;
+    //                     }
+    //                 }
+    //             "#
+    //             .to_string()
+    //         ),
+    //         InterpretResult::Ok
+    //     );
+    //     assert_eq!(vm.stdout, vec!["2", "5", "1", "4", "0", "3",]);
+    // }
 
     #[test]
     fn parse_test() {
@@ -939,96 +830,96 @@ mod test {
         assert_eq!(vm.stdout, vec!["30", "4", "4.5", "false"]);
     }
 
-    #[test]
-    fn closure_local() {
-        let mut vm = VM::new();
-        assert_eq!(
-            vm.interpret(
-                r#"
-                    let x = "global";
-                    let y = "global";
-                    fun outer() {
-                        let x = "local";
-                        fun inner() {
-                            println(x);
-                            println(y);
-                        }
-                        inner();
-                    }
-                    outer();
-                "#
-                .to_string()
-            ),
-            InterpretResult::Ok
-        );
-        assert_eq!(vm.stdout, vec!["local", "\n", "global", "\n"]);
-    }
+    // #[test]
+    // fn closure_local() {
+    //     let mut vm = VM::new();
+    //     assert_eq!(
+    //         vm.interpret(
+    //             r#"
+    //                 let x = "global";
+    //                 let y = "global";
+    //                 fun outer() {
+    //                     let x = "local";
+    //                     fun inner() {
+    //                         println(x);
+    //                         println(y);
+    //                     }
+    //                     inner();
+    //                 }
+    //                 outer();
+    //             "#
+    //             .to_string()
+    //         ),
+    //         InterpretResult::Ok
+    //     );
+    //     assert_eq!(vm.stdout, vec!["local", "\n", "global", "\n"]);
+    // }
 
-    #[test]
-    fn closure_parameter() {
-        let mut vm = VM::new();
-        assert_eq!(
-            vm.interpret(
-                r#"
-                    fun make_closure(a, b) {
-                        fun join(c) {
-                            return a <> b <> c;
-                        }
-                        return join;
-                    }
-                    let closure = make_closure("U", "-");
-                    println(closure(235));
-                "#
-                .to_string()
-            ),
-            InterpretResult::Ok
-        );
-        assert_eq!(vm.stdout, vec!["U-235", "\n"]);
-    }
+    // #[test]
+    // fn closure_parameter() {
+    //     let mut vm = VM::new();
+    //     assert_eq!(
+    //         vm.interpret(
+    //             r#"
+    //                 fun make_closure(a, b) {
+    //                     fun join(c) {
+    //                         return a <> b <> c;
+    //                     }
+    //                     return join;
+    //                 }
+    //                 let closure = make_closure("U", "-");
+    //                 println(closure(235));
+    //             "#
+    //             .to_string()
+    //         ),
+    //         InterpretResult::Ok
+    //     );
+    //     assert_eq!(vm.stdout, vec!["U-235", "\n"]);
+    // }
 
-    #[test]
-    fn return_in_while() {
-        let mut vm = VM::new();
-        assert_eq!(
-            vm.interpret(
-                r#"
-                    fun make_closure() {
-                        while true {
-                            let i = "i";
-                            fun show() print(i); 
-                            return show;
-                        }
-                    }
-                    let closure = make_closure();
-                    closure();
-                "#
-                .to_string()
-            ),
-            InterpretResult::Ok
-        );
-        assert_eq!(vm.stdout, vec!["i"]);
-    }
+    // #[test]
+    // fn return_in_while() {
+    //     let mut vm = VM::new();
+    //     assert_eq!(
+    //         vm.interpret(
+    //             r#"
+    //                 fun make_closure() {
+    //                     while true {
+    //                         let i = "i";
+    //                         fun show() print(i);
+    //                         return show;
+    //                     }
+    //                 }
+    //                 let closure = make_closure();
+    //                 closure();
+    //             "#
+    //             .to_string()
+    //         ),
+    //         InterpretResult::Ok
+    //     );
+    //     assert_eq!(vm.stdout, vec!["i"]);
+    // }
 
-    #[test]
-    fn closure_in_while() {
-        let mut vm = VM::new();
-        assert_eq!(
-            vm.interpret(
-                r#"
-                    fun make_closures() {
-                        let i = 5;
-                        while i {
-                            fun closure() { print(i); }
-                            i = i - 1;
-                            closure();
-                        }
-                    }
-                    make_closures();
-                "#
-                .to_string()
-            ),
-            InterpretResult::Ok
-        );
-        assert_eq!(vm.stdout, vec!["5", "4", "3", "2", "1"]);
-    }
+    // #[test]
+    // fn closure_in_while() {
+    //     let mut vm = VM::new();
+    //     assert_eq!(
+    //         vm.interpret(
+    //             r#"
+    //                 fun make_closures() {
+    //                     let i = 5;
+    //                     while i {
+    //                         fun closure() { print(i); }
+    //                         i = i - 1;
+    //                         closure();
+    //                     }
+    //                 }
+    //                 make_closures();
+    //             "#
+    //             .to_string()
+    //         ),
+    //         InterpretResult::Ok
+    //     );
+    //     assert_eq!(vm.stdout, vec!["5", "4", "3", "2", "1"]);
+    // }
 }

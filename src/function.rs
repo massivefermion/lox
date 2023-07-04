@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 
 use crate::chunk::{Chunk, ChunkIterator};
@@ -11,15 +10,13 @@ pub(crate) struct Function {
     is_loop: bool,
     codes: Chunk<usize>,
     has_return: Option<bool>,
-    captured: HashMap<String, usize>,
 }
 
 impl Function {
-    pub(crate) fn new(name: String, arity: u128, captured: HashMap<String, usize>) -> Function {
+    pub(crate) fn new(name: String, arity: u128) -> Function {
         Function {
             name,
             arity,
-            captured,
             is_loop: false,
             codes: Chunk::new(),
             has_return: Some(false),
@@ -33,19 +30,13 @@ impl Function {
             is_loop: false,
             has_return: None,
             codes: Chunk::new(),
-            captured: HashMap::new(),
         }
     }
 
-    pub(crate) fn new_loop(
-        name: String,
-        arity: u128,
-        captured: HashMap<String, usize>,
-    ) -> Function {
+    pub(crate) fn new_loop(name: String, arity: u128) -> Function {
         Function {
             name,
             arity,
-            captured,
             is_loop: true,
             codes: Chunk::new(),
             has_return: Some(false),
@@ -86,10 +77,6 @@ impl Function {
 
     pub(crate) fn already_returns(&mut self) {
         self.has_return = Some(true);
-    }
-
-    pub(crate) fn captured(&self) -> HashMap<String, usize> {
-        self.captured.clone()
     }
 
     pub(crate) fn is_loop(&self) -> bool {
