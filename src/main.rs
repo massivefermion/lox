@@ -9,6 +9,7 @@ mod function;
 mod nif;
 mod op;
 mod scanner;
+mod tests;
 mod token;
 mod value;
 mod vm;
