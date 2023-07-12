@@ -247,11 +247,12 @@ impl<'a> Compiler<'a> {
                 self.scope_depth -= 1;
                 let function = self.functions.pop().unwrap();
                 self.locals.pop();
-                let address = self.vm.add_function(self.scope_depth, function);
-                if self.scope_depth > 0 {
-                    self.function().add_op(OpCode::MakeClosure);
-                    self.add_constant(Value::Number(address as f64));
-                }
+                self.vm.add_function(self.scope_depth, function);
+                // let address = self.vm.add_function(self.scope_depth, function);
+                // if self.scope_depth > 0 {
+                //     self.function().add_op(OpCode::MakeClosure);
+                //     self.add_constant(Value::Number(address as f64));
+                // }
             }
 
             None => self.errors.push(LoxError::new(

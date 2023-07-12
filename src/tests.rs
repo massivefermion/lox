@@ -95,26 +95,26 @@ mod test {
         assert_eq!(vm.stdout, vec!["5", "\n", "nil"]);
     }
 
-    // #[test]
-    // fn inner_function() {
-    //     let mut vm = VM::new();
-    //     assert_eq!(
-    //         vm.interpret(
-    //             r#"
-    //                 fun outer() {
-    //                     fun inner() {
-    //                         println("inside");
-    //                     }
-    //                     inner();
-    //                 }
-    //                 outer();
-    //             "#
-    //             .to_string()
-    //         ),
-    //         InterpretResult::Ok
-    //     );
-    //     assert_eq!(vm.stdout, vec!["inside", "\n"]);
-    // }
+    #[test]
+    fn inner_function() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun outer() {
+                        fun inner() {
+                            println("inside");
+                        }
+                        inner();
+                    }
+                    outer();
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["inside", "\n"]);
+    }
 
     #[test]
     fn inner_function_only_seen_inside() {
@@ -156,27 +156,27 @@ mod test {
         assert_eq!(vm.stdout, vec!["local", "\n"]);
     }
 
-    // #[test]
-    // fn first_class_function() {
-    //     let mut vm = VM::new();
-    //     assert_eq!(
-    //         vm.interpret(
-    //             r#"
-    //                 fun make_closure() {
-    //                     fun join(a, b) {
-    //                         return a <> b;
-    //                     }
-    //                     return join;
-    //                 }
-    //                 let closure = make_closure();
-    //                 println(closure("U-", 235));
-    //             "#
-    //             .to_string()
-    //         ),
-    //         InterpretResult::Ok
-    //     );
-    //     assert_eq!(vm.stdout, vec!["U-235", "\n"]);
-    // }
+    #[test]
+    fn first_class_function() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun make_closure() {
+                        fun join(a, b) {
+                            return a <> b;
+                        }
+                        return join;
+                    }
+                    let closure = make_closure();
+                    println(closure("U-", 235));
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["U-235", "\n"]);
+    }
 
     #[test]
     fn global_while() {
