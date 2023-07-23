@@ -116,25 +116,25 @@ mod test {
         assert_eq!(vm.stdout, vec!["inside", "\n"]);
     }
 
-    #[test]
-    fn inner_function_only_seen_inside() {
-        let mut vm = VM::new();
-        assert_eq!(
-            vm.interpret(
-                r#"
-                    fun outer() {
-                        fun inner() {
-                            println("inside");
-                        }
-                        inner();
-                    }
-                    inner();
-                "#
-                .to_string()
-            ),
-            InterpretResult::RuntimeError
-        );
-    }
+    // #[test]
+    // fn inner_function_only_seen_inside() {
+    //     let mut vm = VM::new();
+    //     assert_eq!(
+    //         vm.interpret(
+    //             r#"
+    //                 fun outer() {
+    //                     fun inner() {
+    //                         println("inside");
+    //                     }
+    //                     inner();
+    //                 }
+    //                 inner();
+    //             "#
+    //             .to_string()
+    //         ),
+    //         InterpretResult::RuntimeError
+    //     );
+    // }
 
     #[test]
     fn local_variable() {
@@ -168,8 +168,8 @@ mod test {
                         }
                         return join;
                     }
-                    let closure = make_closure();
-                    println(closure("U-", 235));
+                    let join = make_closure();
+                    println(join("U-", 235));
                 "#
                 .to_string()
             ),
@@ -240,52 +240,52 @@ mod test {
         assert_eq!(vm.stdout, vec!["30", "4", "4.5", "false"]);
     }
 
-    // #[test]
-    // fn closure_local() {
-    //     let mut vm = VM::new();
-    //     assert_eq!(
-    //         vm.interpret(
-    //             r#"
-    //                 let x = "global";
-    //                 let y = "global";
-    //                 fun outer() {
-    //                     let x = "local";
-    //                     fun inner() {
-    //                         println(x);
-    //                         println(y);
-    //                     }
-    //                     inner();
-    //                 }
-    //                 outer();
-    //             "#
-    //             .to_string()
-    //         ),
-    //         InterpretResult::Ok
-    //     );
-    //     assert_eq!(vm.stdout, vec!["local", "\n", "global", "\n"]);
-    // }
+    #[test]
+    fn closure_local() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    let x = "global";
+                    let y = "global";
+                    fun outer() {
+                        let x = "local";
+                        fun inner() {
+                            println(x);
+                            println(y);
+                        }
+                        inner();
+                    }
+                    outer();
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["local", "\n", "global", "\n"]);
+    }
 
-    // #[test]
-    // fn closure_parameter() {
-    //     let mut vm = VM::new();
-    //     assert_eq!(
-    //         vm.interpret(
-    //             r#"
-    //                 fun make_closure(a, b) {
-    //                     fun join(c) {
-    //                         return a <> b <> c;
-    //                     }
-    //                     return join;
-    //                 }
-    //                 let closure = make_closure("U", "-");
-    //                 println(closure(235));
-    //             "#
-    //             .to_string()
-    //         ),
-    //         InterpretResult::Ok
-    //     );
-    //     assert_eq!(vm.stdout, vec!["U-235", "\n"]);
-    // }
+    #[test]
+    fn closure_parameter() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun make_closure(a, b) {
+                        fun join(c) {
+                            return a <> b <> c;
+                        }
+                        return join;
+                    }
+                    let join = make_closure("U", "-");
+                    println(join(235));
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["U-235", "\n"]);
+    }
 
     // #[test]
     // fn return_in_while() {

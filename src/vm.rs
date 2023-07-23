@@ -20,7 +20,6 @@ pub(crate) struct VM {
     globals: HashMap<String, Value>,
     functions: Vec<(Function, u128)>,
     loops: HashMap<String, Function>,
-    function_pointers: HashMap<String, String>,
 }
 
 impl VM {
@@ -35,7 +34,6 @@ impl VM {
             constants: Chunk::new(),
             globals: HashMap::new(),
             start_time: Instant::now(),
-            function_pointers: HashMap::new(),
         }
     }
 
@@ -86,7 +84,17 @@ impl VM {
                     let Some(constant) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
-                    self.stack_push(constant.clone());
+
+                    match constant {
+                        Value::Function((address, None)) => {
+                            if let Some((function, _)) = self.functions.get(*address) {
+                                self.stack_push(Value::Function((*address, Some(function.clone()))))
+                            } else {
+                                return InterpretResult::RuntimeError;
+                            }
+                        }
+                        _ => self.stack_push(constant.clone()),
+                    }
                 }
 
                 OpCode::Negate => {
@@ -241,6 +249,51 @@ impl VM {
                     self.stack_push(Value::Nil);
                 }
 
+                OpCode::MakeClosure => {
+                    iterator.next();
+                    let Some(address) = iterator.next() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(Value::Number(address)) = self.get_constant(address) else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    let address = *address;
+                    let Some((ref mut function, _)) = self.functions.get_mut(address as usize) else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    function
+                        .captures()
+                        .iter()
+                        .for_each(|(name, (frame, address, _))| {
+                            function.populate_capture(
+                                name.clone(),
+                                self.stack
+                                    .get(*frame)
+                                    .unwrap()
+                                    .get(*address)
+                                    .cloned()
+                                    .unwrap(),
+                            );
+                        });
+                }
+
+                OpCode::GetCaptured => {
+                    iterator.next();
+                    let Some(address) = iterator.next() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(Value::String(variable_name)) = self.get_constant(address) else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    let Some(value) = function.get_capture(variable_name.clone()) else {                            
+                        return InterpretResult::RuntimeError;
+                    };
+                    self.stack_push(value.clone());
+                }
+
                 OpCode::DefGlobal => {
                     iterator.next();
                     let Some(address) = iterator.next() else {
@@ -253,13 +306,6 @@ impl VM {
 
                     let Some(value) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
-                    };
-
-                    if let Value::Function(function) = value.clone() {
-                        if *variable_name != function.name() {
-                            self.function_pointers
-                                .insert(variable_name.clone(), function.name());
-                        };
                     };
 
                     self.globals.insert(variable_name, value.clone());
@@ -277,13 +323,6 @@ impl VM {
 
                     let Some(value) = self.stack_peek() else {
                         return InterpretResult::RuntimeError;
-                    };
-
-                    if let Value::Function(function) = value.clone() {
-                        if *variable_name != function.name() {
-                            self.function_pointers
-                                .insert(variable_name.clone(), function.name());
-                        };
                     };
 
                     if self.globals.insert(variable_name, value).is_none() {
@@ -424,19 +463,13 @@ impl VM {
                         }
 
                         None => {
-                            let function = match self.resolve_function(&function_name, scope) {
-                                Some(function) => Some(function),
-                                None => match self.function_pointers.get(&function_name) {
-                                    Some(alias) => self.resolve_function(alias, scope),
-                                    None => None,
-                                },
-                            };
+                            let function = self.resolve_function(&function_name, scope);
 
                             if function.is_none() {
                                 return InterpretResult::RuntimeError;
                             }
 
-                            let function = function.unwrap();
+                            let (function, _) = function.unwrap();
 
                             if function.arity() != args {
                                 return InterpretResult::RuntimeError;
@@ -455,18 +488,6 @@ impl VM {
                             }
                         }
                     }
-                }
-
-                OpCode::ClearScope => {
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
-                        return InterpretResult::RuntimeError;
-                    };
-                    let Some(Value::Number(scope)) = self.get_constant(address) else {
-                        return InterpretResult::RuntimeError;
-                    };
-                    let scope = *scope as u128;
-                    self.clear_scope_functions(scope);
                 }
 
                 _ => return InterpretResult::CompileError,
@@ -521,46 +542,22 @@ impl VM {
         self.start_time
     }
 
-    pub(crate) fn resolve_function(&self, name: &String, given_scope: u128) -> Option<Function> {
-        match self.get_function_from_functions(name, given_scope) {
-            Some(function) => Some(function),
-            None => self.get_function_from_constants(name),
-        }
+    pub(crate) fn resolve_function(
+        &self,
+        name: &String,
+        _given_scope: u128,
+    ) -> Option<(Function, usize)> {
+        self.functions
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, (function, _scope))| function.name() == *name)
+            .map(|(address, (function, _))| (function.clone(), address))
     }
 
     #[cfg(test)]
     pub(crate) fn get_stdout(&mut self) -> &mut Vec<String> {
         &mut self.stdout
-    }
-
-    fn get_function_from_functions(&self, name: &String, given_scope: u128) -> Option<Function> {
-        self.functions
-            .iter()
-            .rev()
-            .find(|(function, scope)| function.name() == *name && *scope <= given_scope)
-            .map(|(function, _)| function.clone())
-    }
-
-    fn get_function_from_constants(&self, name: &String) -> Option<Function> {
-        self.constants
-            .into_iter()
-            .filter(|value| matches!(value, Value::Function(_)))
-            .find(|function| {
-                let Value::Function(function) = function else {
-                    panic!();
-                };
-                function.name() == *name
-            })
-            .map(|function| {
-                let Value::Function(function) = function else {
-                    panic!();
-                };
-                function.clone()
-            })
-    }
-
-    fn clear_scope_functions(&mut self, given_scope: u128) {
-        self.functions.retain(|(_, scope)| *scope != given_scope);
     }
 
     fn get_constant(&self, address: usize) -> Option<&Value> {

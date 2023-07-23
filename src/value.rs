@@ -9,7 +9,7 @@ pub(crate) enum Value {
     Number(f64),
     Boolean(bool),
     String(String),
-    Function(Function),
+    Function((usize, Option<Function>)),
 }
 
 #[derive(PartialEq)]
@@ -57,7 +57,10 @@ impl From<Value> for String {
             Value::Boolean(true) => "true".to_string(),
             Value::Boolean(false) => "false".to_string(),
             Value::Number(value) => value.to_string(),
-            Value::Function(value) => value.to_string(),
+            Value::Function((_, value)) => match value {
+                Some(function) => function.to_string(),
+                None => String::new(),
+            },
         }
     }
 }

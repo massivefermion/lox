@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 
 use crate::chunk::{Chunk, ChunkIterator};
 use crate::op::OpCode;
+use crate::value::Value;
 
 #[derive(Clone)]
 pub(crate) struct Function {
@@ -10,6 +12,7 @@ pub(crate) struct Function {
     is_loop: bool,
     codes: Chunk<usize>,
     has_return: Option<bool>,
+    captures: HashMap<String, (usize, usize, Option<Value>)>,
 }
 
 impl Function {
@@ -20,6 +23,7 @@ impl Function {
             is_loop: false,
             codes: Chunk::new(),
             has_return: Some(false),
+            captures: HashMap::new(),
         }
     }
 
@@ -30,16 +34,18 @@ impl Function {
             is_loop: false,
             has_return: None,
             codes: Chunk::new(),
+            captures: HashMap::new(),
         }
     }
 
-    pub(crate) fn new_loop(name: String, arity: u128) -> Function {
+    pub(crate) fn new_loop(name: String) -> Function {
         Function {
             name,
-            arity,
+            arity: 0,
             is_loop: true,
             codes: Chunk::new(),
             has_return: Some(false),
+            captures: HashMap::new(),
         }
     }
 
@@ -81,6 +87,26 @@ impl Function {
 
     pub(crate) fn is_loop(&self) -> bool {
         self.is_loop
+    }
+
+    pub(crate) fn captures(&self) -> HashMap<String, (usize, usize, Option<Value>)> {
+        self.captures.clone()
+    }
+
+    pub(crate) fn add_capture(&mut self, name: String, frame: usize, address: usize) {
+        self.captures.insert(name, (frame, address, None));
+    }
+
+    pub(crate) fn populate_capture(&mut self, name: String, value: Value) {
+        if let Some((frame, address, _)) = self.captures.get(&name) {
+            self.captures.insert(name, (*frame, *address, Some(value)));
+        }
+    }
+
+    pub(crate) fn get_capture(&self, name: String) -> Option<Value> {
+        self.captures
+            .get(&name)
+            .and_then(|(_, _, value)| value.clone())
     }
 }
 

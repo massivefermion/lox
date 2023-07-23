@@ -14,6 +14,7 @@ use crate::vm::VM;
 pub(crate) struct Compiler<'a> {
     vm: &'a mut VM,
     scope_depth: u128,
+    globals: Vec<String>,
     errors: Vec<LoxError>,
     functions: Vec<Function>,
     locals: Vec<Vec<(String, u128)>>,
@@ -25,6 +26,7 @@ impl<'a> Compiler<'a> {
         Compiler {
             vm,
             errors: vec![],
+            globals: vec![],
             locals: vec![vec![]],
             scope_depth: 0,
             functions: vec![function],
@@ -89,7 +91,7 @@ impl<'a> Compiler<'a> {
                     self.function().already_returns();
                 }
 
-                _ => self.compile_statement(true, true),
+                _ => self.compile_statement(true),
             },
 
             None => self.errors.push(LoxError::new(
@@ -125,6 +127,7 @@ impl<'a> Compiler<'a> {
 
                 match self.scope_depth {
                     0 => {
+                        self.globals.push(variable_name.clone().into());
                         self.function().add_op(OpCode::DefGlobal);
                         self.add_constant(variable_name);
                     }
@@ -239,7 +242,7 @@ impl<'a> Compiler<'a> {
                 }
 
                 self.new_function(function_name, arity);
-                self.compile_statement(false, true);
+                self.compile_statement(false);
                 if let Some(false) = self.function().has_return() {
                     self.function().add_op(OpCode::Nil);
                     self.function().add_op(OpCode::Return);
@@ -247,12 +250,11 @@ impl<'a> Compiler<'a> {
                 self.scope_depth -= 1;
                 let function = self.functions.pop().unwrap();
                 self.locals.pop();
-                self.vm.add_function(self.scope_depth, function);
-                // let address = self.vm.add_function(self.scope_depth, function);
-                // if self.scope_depth > 0 {
-                //     self.function().add_op(OpCode::MakeClosure);
-                //     self.add_constant(Value::Number(address as f64));
-                // }
+                let address = self.vm.add_function(self.scope_depth, function);
+                if self.scope_depth > 0 {
+                    self.function().add_op(OpCode::MakeClosure);
+                    self.add_constant(Value::Number(address as f64));
+                }
             }
 
             None => self.errors.push(LoxError::new(
@@ -269,7 +271,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_statement(&mut self, manage_scope: bool, clear_scope: bool) {
+    fn compile_statement(&mut self, manage_scope: bool) {
         match self.scanner.peek() {
             Some(token) if token.kind() == Kind::If => {
                 self.scanner.next();
@@ -306,12 +308,6 @@ impl<'a> Compiler<'a> {
                 let current_scope = self.scope_depth;
                 self.locals().retain(|(_, scope)| *scope != current_scope);
 
-                if clear_scope {
-                    let scope = self.scope_depth;
-                    self.function().add_op(OpCode::ClearScope);
-                    self.add_constant(Value::Number(scope as f64));
-                }
-
                 if manage_scope {
                     self.scope_depth -= 1;
                 }
@@ -336,7 +332,7 @@ impl<'a> Compiler<'a> {
         self.compile_expression();
         let jump_address = self.function().add_jump(true);
         self.function().add_op(OpCode::Pop);
-        self.compile_statement(true, true);
+        self.compile_statement(true);
         let else_jump_address = self.function().add_jump(false);
         self.function().patch_jump(jump_address);
         self.function().add_op(OpCode::Pop);
@@ -344,7 +340,7 @@ impl<'a> Compiler<'a> {
         if let Some(token) = self.scanner.peek() {
             if token.kind() == Kind::Else {
                 self.scanner.next();
-                self.compile_statement(true, true);
+                self.compile_statement(true);
             }
         }
 
@@ -360,14 +356,14 @@ impl<'a> Compiler<'a> {
 
         self.scope_depth += 1;
         self.locals.push(vec![]);
-        self.new_loop(name.clone(), 0);
+        self.new_loop(name.clone());
 
         self.compile_expression();
 
         let jump_address = self.function().add_jump(true);
         self.function().add_op(OpCode::Pop);
 
-        self.compile_statement(false, false);
+        self.compile_statement(false);
 
         if self.function().is_loop() {
             self.function().add_op(OpCode::Loop);
@@ -559,20 +555,19 @@ impl<'a> Compiler<'a> {
                                 self.function().add_address(address as usize);
                             }
 
-                            // None if self
-                            //     .functions
-                            //     .last()
-                            //     .unwrap()
-                            //     .captured()
-                            //     .contains_key(&name) =>
-                            // {
-                            //     self.function().add_op(OpCode::SetCaptured);
-                            //     self.add_constant(Value::String(name));
-                            // }
-                            None => {
-                                self.function().add_op(OpCode::SetGlobal);
-                                self.add_constant(Value::String(name));
-                            }
+                            None => match self.globals.iter().find(|variable| **variable == name) {
+                                Some(_) => {
+                                    self.function().add_op(OpCode::SetGlobal);
+                                    self.add_constant(Value::String(name));
+                                }
+                                None => {
+                                    self.errors.push(LoxError::new(
+                                        "Invalid assignment target",
+                                        ErrorContext::Compile,
+                                        None,
+                                    ));
+                                }
+                            },
                         }
                     }
 
@@ -642,24 +637,41 @@ impl<'a> Compiler<'a> {
                         self.function().add_address(address.unwrap() as usize);
                     }
 
-                    // _ if self
-                    //     .functions
-                    //     .last()
-                    //     .unwrap()
-                    //     .captured()
-                    //     .contains_key(&name) =>
-                    // {
-                    //     self.function().add_op(OpCode::GetCaptured);
-                    //     self.add_constant(token.value().unwrap());
-                    // }
                     _ if self.vm.function_exists(self.scope_depth, &name) => {
-                        let function = self.vm.resolve_function(&name, self.scope_depth).unwrap();
-                        self.add_constant(Value::Function(function));
+                        let (_, address) =
+                            self.vm.resolve_function(&name, self.scope_depth).unwrap();
+                        self.add_constant(Value::Function((address, None)));
                     }
 
                     _ => {
-                        self.function().add_op(OpCode::GetGlobal);
-                        self.add_constant(Value::String(name));
+                        let captured = match self.locals.as_slice().split_last() {
+                            Some((_, captured_frames)) => captured_frames
+                                .iter()
+                                .enumerate()
+                                .rev()
+                                .map(|(index, frame)| (index, frame.iter().enumerate()))
+                                .find_map(|(frame_index, mut frame)| {
+                                    frame.find_map(|(index, item)| match item.0 == name {
+                                        true => Some((frame_index, index)),
+                                        false => None,
+                                    })
+                                }),
+
+                            None => None,
+                        };
+
+                        match captured {
+                            Some((frame, address)) => {
+                                self.function().add_op(OpCode::GetCaptured);
+                                self.add_constant(Value::String(name.clone()));
+                                self.function().add_capture(name, frame, address);
+                            }
+
+                            None => {
+                                self.function().add_op(OpCode::GetGlobal);
+                                self.add_constant(Value::String(name));
+                            }
+                        }
                     }
                 }
             }
@@ -726,8 +738,8 @@ impl<'a> Compiler<'a> {
         self.functions.push(function);
     }
 
-    fn new_loop(&mut self, name: String, arity: u128) {
-        let function = Function::new_loop(name, arity);
+    fn new_loop(&mut self, name: String) {
+        let function = Function::new_loop(name);
         self.functions.push(function);
     }
 }

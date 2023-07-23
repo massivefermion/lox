@@ -24,11 +24,9 @@ pub(crate) enum OpCode {
     GetGlobal,
     LessEqual,
     SetGlobal,
-    ClearScope,
     JumpIfFalse,
     GetCaptured,
     MakeClosure,
-    SetCaptured,
     GreaterEqual,
 
     Invalid,
@@ -42,10 +40,8 @@ impl OpCode {
             | Self::DefGlobal
             | Self::GetGlobal
             | Self::SetGlobal
-            | Self::ClearScope
-            | Self::GetCaptured
             | Self::MakeClosure
-            | Self::SetCaptured => 2,
+            | Self::GetCaptured => 2,
             Self::Call => 6,
             _ => 0,
         }
@@ -79,12 +75,10 @@ impl From<u8> for OpCode {
             21 => Self::GetGlobal,
             22 => Self::LessEqual,
             23 => Self::SetGlobal,
-            24 => Self::ClearScope,
-            25 => Self::JumpIfFalse,
-            26 => Self::GetCaptured,
-            27 => Self::MakeClosure,
-            28 => Self::SetCaptured,
-            29 => Self::GreaterEqual,
+            24 => Self::JumpIfFalse,
+            25 => Self::GetCaptured,
+            26 => Self::MakeClosure,
+            27 => Self::GreaterEqual,
             _ => Self::Invalid,
         }
     }
@@ -117,12 +111,10 @@ impl From<OpCode> for u8 {
             OpCode::GetGlobal => 21,
             OpCode::LessEqual => 22,
             OpCode::SetGlobal => 23,
-            OpCode::ClearScope => 24,
-            OpCode::JumpIfFalse => 25,
-            OpCode::GetCaptured => 26,
-            OpCode::MakeClosure => 27,
-            OpCode::SetCaptured => 28,
-            OpCode::GreaterEqual => 29,
+            OpCode::JumpIfFalse => 24,
+            OpCode::GetCaptured => 25,
+            OpCode::MakeClosure => 26,
+            OpCode::GreaterEqual => 27,
             OpCode::Invalid => 255,
         }
     }
