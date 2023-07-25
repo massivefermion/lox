@@ -69,6 +69,16 @@ impl VM {
                         None => Value::Nil,
                     };
 
+                    if let Value::Function((address, _)) = return_value {
+                        if let Some(returned_function) = self.functions.get_mut(address).cloned() {
+                            self.functions.remove(address);
+                            self.functions.insert(
+                                address,
+                                (returned_function.clone().0, returned_function.1 - 1),
+                            );
+                        };
+                    };
+
                     if !function.is_loop() {
                         self.stack.pop();
                     }
@@ -545,13 +555,13 @@ impl VM {
     pub(crate) fn resolve_function(
         &self,
         name: &String,
-        _given_scope: u128,
+        given_scope: u128,
     ) -> Option<(Function, usize)> {
         self.functions
             .iter()
             .enumerate()
             .rev()
-            .find(|(_, (function, _scope))| function.name() == *name)
+            .find(|(_, (function, scope))| function.name() == *name && *scope <= given_scope)
             .map(|(address, (function, _))| (function.clone(), address))
     }
 

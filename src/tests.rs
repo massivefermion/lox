@@ -116,25 +116,25 @@ mod test {
         assert_eq!(vm.stdout, vec!["inside", "\n"]);
     }
 
-    // #[test]
-    // fn inner_function_only_seen_inside() {
-    //     let mut vm = VM::new();
-    //     assert_eq!(
-    //         vm.interpret(
-    //             r#"
-    //                 fun outer() {
-    //                     fun inner() {
-    //                         println("inside");
-    //                     }
-    //                     inner();
-    //                 }
-    //                 inner();
-    //             "#
-    //             .to_string()
-    //         ),
-    //         InterpretResult::RuntimeError
-    //     );
-    // }
+    #[test]
+    fn inner_function_only_seen_inside() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun outer() {
+                        fun inner() {
+                            println("inside");
+                        }
+                        inner();
+                    }
+                    inner();
+                "#
+                .to_string()
+            ),
+            InterpretResult::RuntimeError
+        );
+    }
 
     #[test]
     fn local_variable() {
