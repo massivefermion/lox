@@ -695,7 +695,7 @@ impl<'a> Compiler<'a> {
             }
 
             Some(token) => self.errors.push(LoxError::new(
-                format!("unexpected {:?} #4", token).as_str(),
+                format!("expected {:?}, got {:?}", kind, token).as_str(),
                 ErrorContext::Compile,
                 None,
             )),
