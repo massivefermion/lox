@@ -78,6 +78,28 @@ mod test {
     }
 
     #[test]
+    fn recursive_function() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun sum_till_one(a) {
+                        if a == 1 {
+                            return 1;
+                        }
+
+                        return a + sum_till_one(a - 1);
+                    }
+                    print(sum_till_one(4));
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["10"]);
+    }
+
+    #[test]
     fn function_with_no_return() {
         let mut vm = VM::new();
         assert_eq!(

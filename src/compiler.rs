@@ -146,9 +146,7 @@ impl<'a> Compiler<'a> {
                                     ErrorContext::Compile,
                                     None,
                                 )),
-                                None => {
-                                    self.locals().push((variable_name, current_scope));
-                                }
+                                None => self.locals().push((variable_name, current_scope)),
                             }
                         }
                     }
@@ -545,7 +543,7 @@ impl<'a> Compiler<'a> {
                 let name: String = token.value().unwrap().into();
                 let address = self.resolve_local(name.clone());
 
-                match self.scanner.peek() {
+                match self.scanner.peek().cloned() {
                     Some(token) if token.kind() == Kind::Equal && can_assign => {
                         self.scanner.next();
                         self.compile_expression();
@@ -562,7 +560,7 @@ impl<'a> Compiler<'a> {
                                 }
                                 None => {
                                     self.errors.push(LoxError::new(
-                                        "Invalid assignment target",
+                                        "Cannot assign to captured variable",
                                         ErrorContext::Compile,
                                         None,
                                     ));

@@ -267,7 +267,8 @@ impl VM {
                     };
 
                     let address = *address;
-                    let Some((ref mut function, _)) = self.functions.get_mut(address as usize) else {
+                    let Some((ref mut function, _)) = self.functions.get_mut(address as usize)
+                    else {
                         return InterpretResult::RuntimeError;
                     };
 
@@ -296,7 +297,7 @@ impl VM {
                         return InterpretResult::RuntimeError;
                     };
 
-                    let Some(value) = function.get_capture(variable_name.clone()) else {                            
+                    let Some(value) = function.get_capture(variable_name.clone()) else {
                         return InterpretResult::RuntimeError;
                     };
                     self.stack_push(value.clone());
@@ -368,6 +369,7 @@ impl VM {
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
+                    iterator.next();
                     let Some(value) = self.stack_peek() else {
                         return InterpretResult::RuntimeError;
                     };
@@ -397,7 +399,7 @@ impl VM {
                 }
 
                 OpCode::Jump => {
-                    let  Some(size) = iterator.next() else {
+                    let Some(size) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
 
@@ -532,7 +534,7 @@ impl VM {
         self.stack.last_mut().unwrap().pop()
     }
 
-    pub(crate) fn stack_peek(&mut self) -> Option<Value> {
+    pub(crate) fn stack_peek(&self) -> Option<Value> {
         self.stack.last().unwrap().last().cloned()
     }
 
@@ -559,7 +561,7 @@ impl VM {
             .iter()
             .enumerate()
             .rev()
-            .find(|(_, (function, scope))| function.name() == *name && *scope <= given_scope)
+            .find(|(_, (function, scope))| (function.name() == *name) && *scope <= given_scope)
             .map(|(address, (function, _))| (function.clone(), address))
     }
 
