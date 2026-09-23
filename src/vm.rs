@@ -10,6 +10,19 @@ use crate::nif::resolve_nif;
 use crate::op::OpCode;
 use crate::value::Value;
 
+fn read_operand(function: &Function, ip: &mut usize) -> Option<usize> {
+    let value = function.get_code(*ip)?;
+    *ip += 1;
+    Some(value)
+}
+
+fn read_constant_operand(function: &Function, ip: &mut usize) -> Option<usize> {
+    *ip += 1; // skip Constant opcode
+    let value = function.get_code(*ip)?;
+    *ip += 1;
+    Some(value)
+}
+
 pub(crate) struct VM {
     #[cfg(test)]
     pub stdout: Vec<String>,
@@ -19,7 +32,6 @@ pub(crate) struct VM {
     constants: Chunk<Value>,
     globals: HashMap<String, Value>,
     functions: Vec<(Function, u128)>,
-    loops: HashMap<String, Function>,
 }
 
 impl VM {
@@ -30,7 +42,6 @@ impl VM {
 
             functions: vec![],
             stack: vec![vec![]],
-            loops: HashMap::new(),
             constants: Chunk::new(),
             globals: HashMap::new(),
             start_time: Instant::now(),
@@ -49,8 +60,14 @@ impl VM {
     pub(crate) fn run(&mut self, function: Function) -> InterpretResult {
         let debug = var_os("DEBUG").is_some();
 
-        let mut iterator = function.into_iter().peekable();
-        while let Some(current) = iterator.next() {
+        let mut ip: usize = 0;
+        let code_size = function.code_size();
+
+        while ip < code_size {
+            let Some(current) = function.get_code(ip) else {
+                return InterpretResult::RuntimeError;
+            };
+            ip += 1;
             let op_code = OpCode::from(current as u8);
 
             if debug {
@@ -77,16 +94,14 @@ impl VM {
                         };
                     };
 
-                    if !function.is_loop() {
-                        self.stack.pop();
-                    }
+                    self.stack.pop();
                     self.stack_push(return_value);
 
                     return InterpretResult::Ok;
                 }
 
                 OpCode::Constant => {
-                    let Some(address) = iterator.next() else {
+                    let Some(address) = read_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
                     let Some(constant) = self.get_constant(address) else {
@@ -95,8 +110,8 @@ impl VM {
 
                     match constant {
                         Value::Function((address, None)) => {
-                            if let Some((function, _)) = self.functions.get(*address) {
-                                self.stack_push(Value::Function((*address, Some(function.clone()))))
+                            if let Some((func, _)) = self.functions.get(*address) {
+                                self.stack_push(Value::Function((*address, Some(func.clone()))))
                             } else {
                                 return InterpretResult::RuntimeError;
                             }
@@ -159,6 +174,17 @@ impl VM {
                     self.stack_push(Value::Number(left + right))
                 }
 
+                OpCode::Subtract => {
+                    let Some(Value::Number(right)) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(Value::Number(left)) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    self.stack_push(Value::Number(left - right))
+                }
+
                 OpCode::Multiply => {
                     let Some(Value::Number(right)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
@@ -173,6 +199,9 @@ impl VM {
                     let Some(Value::Number(right)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
+                    if right == 0.0 {
+                        return InterpretResult::RuntimeError;
+                    }
                     let Some(Value::Number(left)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
@@ -183,6 +212,9 @@ impl VM {
                     let Some(Value::Number(right)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
+                    if right == 0.0 {
+                        return InterpretResult::RuntimeError;
+                    }
                     let Some(Value::Number(left)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
@@ -258,8 +290,7 @@ impl VM {
                 }
 
                 OpCode::MakeClosure => {
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
                     let Some(Value::Number(address)) = self.get_constant(address) else {
@@ -267,16 +298,14 @@ impl VM {
                     };
 
                     let address = *address;
-                    let Some((ref mut function, _)) = self.functions.get_mut(address as usize)
-                    else {
+                    let Some((ref mut func, _)) = self.functions.get_mut(address as usize) else {
                         return InterpretResult::RuntimeError;
                     };
 
-                    function
-                        .captures()
+                    func.captures()
                         .iter()
                         .for_each(|(name, (frame, address, _))| {
-                            function.populate_capture(
+                            func.populate_capture(
                                 name.clone(),
                                 self.stack
                                     .get(*frame)
@@ -289,8 +318,7 @@ impl VM {
                 }
 
                 OpCode::GetCaptured => {
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
                     let Some(Value::String(variable_name)) = self.get_constant(address) else {
@@ -304,8 +332,7 @@ impl VM {
                 }
 
                 OpCode::DefGlobal => {
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
                     let Some(Value::String(variable_name)) = self.get_constant(address) else {
@@ -321,8 +348,7 @@ impl VM {
                 }
 
                 OpCode::SetGlobal => {
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
                     let Some(Value::String(variable_name)) = self.get_constant(address) else {
@@ -340,8 +366,7 @@ impl VM {
                 }
 
                 OpCode::GetGlobal => {
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
                     let Some(Value::String(variable_name)) = self.get_constant(address) else {
@@ -356,7 +381,7 @@ impl VM {
                 }
 
                 OpCode::GetLocal => {
-                    let Some(address) = iterator.next() else {
+                    let Some(address) = read_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
                     let Some(value) = self.stack_get(address) else {
@@ -366,10 +391,9 @@ impl VM {
                 }
 
                 OpCode::SetLocal => {
-                    let Some(address) = iterator.next() else {
+                    let Some(address) = read_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    iterator.next();
                     let Some(value) = self.stack_peek() else {
                         return InterpretResult::RuntimeError;
                     };
@@ -387,52 +411,32 @@ impl VM {
                         None => return InterpretResult::RuntimeError,
                     };
 
-                    let Some(size) = iterator.next() else {
+                    let Some(size) = read_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
 
                     if is_falsey {
-                        for _ in 0..size {
-                            iterator.next();
-                        }
+                        ip += size;
                     }
                 }
 
                 OpCode::Jump => {
-                    let Some(size) = iterator.next() else {
+                    let Some(size) = read_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
 
-                    for _ in 0..size {
-                        iterator.next();
-                    }
+                    ip += size;
                 }
 
-                OpCode::Loop => {
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
+                OpCode::JumpBack => {
+                    let Some(target) = function.get_code(ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    let Some(Value::String(loop_name)) = self.get_constant(address) else {
-                        return InterpretResult::RuntimeError;
-                    };
-
-                    let Some(lp) = self.get_loop(loop_name) else {
-                        return InterpretResult::RuntimeError;
-                    };
-
-                    self.stack.push(vec![]);
-                    let name = lp.name().clone();
-                    match self.run(lp) {
-                        InterpretResult::Ok => (),
-                        _ => return InterpretResult::RuntimeError,
-                    };
-                    self.remove_loop(&name);
+                    ip = target;
                 }
 
                 OpCode::Call => {
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
                     let Some(Value::Number(scope)) = self.get_constant(address) else {
@@ -440,8 +444,7 @@ impl VM {
                     };
                     let scope = *scope as u128;
 
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
                     let Some(Value::Number(args)) = self.get_constant(address) else {
@@ -449,8 +452,7 @@ impl VM {
                     };
                     let args = *args as u128;
 
-                    iterator.next();
-                    let Some(address) = iterator.next() else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
                     let Some(Value::String(function_name)) = self.get_constant(address) else {
@@ -473,15 +475,19 @@ impl VM {
                         }
 
                         None => {
-                            let function = self.resolve_function(&function_name, scope);
-
-                            if function.is_none() {
+                            let callee = if let Some((func, _)) =
+                                self.resolve_function(&function_name, scope)
+                            {
+                                func
+                            } else if let Some(Value::Function((_, Some(func)))) =
+                                self.globals.get(&function_name)
+                            {
+                                func.clone()
+                            } else {
                                 return InterpretResult::RuntimeError;
-                            }
+                            };
 
-                            let (function, _) = function.unwrap();
-
-                            if function.arity() != args {
+                            if callee.arity() != args {
                                 return InterpretResult::RuntimeError;
                             }
 
@@ -492,7 +498,7 @@ impl VM {
                             substack.reverse();
                             self.stack.push(substack);
 
-                            match self.run(function.clone()) {
+                            match self.run(callee.clone()) {
                                 InterpretResult::Ok => (),
                                 _ => return InterpretResult::RuntimeError,
                             }
@@ -514,10 +520,6 @@ impl VM {
     pub(crate) fn add_function(&mut self, scope_depth: u128, function: Function) -> usize {
         self.functions.push((function, scope_depth));
         self.functions.len() - 1
-    }
-
-    pub(crate) fn add_loop(&mut self, lp: Function) {
-        self.loops.insert(lp.name(), lp);
     }
 
     pub(crate) fn function_exists(&self, scope_depth: u128, name: &String) -> bool {
@@ -572,14 +574,6 @@ impl VM {
 
     fn get_constant(&self, address: usize) -> Option<&Value> {
         self.constants.get(address)
-    }
-
-    fn get_loop(&self, name: &String) -> Option<Function> {
-        self.loops.get(name).cloned()
-    }
-
-    fn remove_loop(&mut self, name: &String) {
-        self.loops.remove(name);
     }
 
     fn is_falsey(&self, value: &Value) -> Option<bool> {

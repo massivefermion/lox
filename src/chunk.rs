@@ -21,8 +21,7 @@ impl<T> Chunk<T> {
     }
 
     pub(crate) fn set(&mut self, address: usize, item: T) {
-        self.storage.remove(address);
-        self.storage.insert(address, item);
+        self.storage[address] = item;
     }
 
     pub(crate) fn size(&self) -> usize {
