@@ -386,7 +386,6 @@ impl VM {
                     let Some(address) = iterator.next() else {
                         return InterpretResult::RuntimeError;
                     };
-                    iterator.next();
                     let Some(value) = self.stack_peek() else {
                         return InterpretResult::RuntimeError;
                     };
