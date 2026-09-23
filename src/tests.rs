@@ -390,6 +390,40 @@ mod test {
     }
 
     #[test]
+    fn error_recovery() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    let x = ;
+                    let y = 5;
+                    print(y);
+                "#
+                .to_string()
+            ),
+            InterpretResult::CompileError
+        );
+    }
+
+    #[test]
+    fn unimplemented_for() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"for (let i = 0; i < 10; i = i + 1) { print(i); }"#.to_string()),
+            InterpretResult::CompileError
+        );
+    }
+
+    #[test]
+    fn unimplemented_class() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"class Foo {}"#.to_string()),
+            InterpretResult::CompileError
+        );
+    }
+
+    #[test]
     fn closure_in_while() {
         let mut vm = VM::new();
         assert_eq!(

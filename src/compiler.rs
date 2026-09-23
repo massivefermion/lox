@@ -14,6 +14,7 @@ pub(crate) struct Compiler<'a> {
     scope_depth: u128,
     globals: Vec<String>,
     errors: Vec<LoxError>,
+    panicking: bool,
     functions: Vec<Function>,
     locals: Vec<Vec<(String, u128)>>,
     scanner: Peekable<Scanner<'a>>,
@@ -25,6 +26,7 @@ impl<'a> Compiler<'a> {
             vm,
             errors: vec![],
             globals: vec![],
+            panicking: false,
             locals: vec![vec![]],
             scope_depth: 0,
             functions: vec![function],
@@ -72,14 +74,28 @@ impl<'a> Compiler<'a> {
                     self.function().already_returns();
                 }
 
+                Kind::For => {
+                    self.scanner.next();
+                    self.error("Feature 'for' is not yet implemented", ErrorContext::Compile, None);
+                }
+
+                Kind::Class => {
+                    self.scanner.next();
+                    self.error("Feature 'class' is not yet implemented", ErrorContext::Compile, None);
+                }
+
                 _ => self.compile_statement(true),
             },
 
-            None => self.errors.push(LoxError::new(
+            None => self.error(
                 "Unexpected end of script",
                 ErrorContext::Compile,
                 None,
-            )),
+            ),
+        }
+
+        if self.panicking {
+            self.synchronize();
         }
     }
 
@@ -98,11 +114,11 @@ impl<'a> Compiler<'a> {
                         _ => self.function().add_op(OpCode::Nil),
                     },
 
-                    None => self.errors.push(LoxError::new(
+                    None => self.error(
                         "Unexpected end of script",
                         ErrorContext::Compile,
                         None,
-                    )),
+                    ),
                 }
                 self.expect(Kind::Semicolon);
 
@@ -121,12 +137,12 @@ impl<'a> Compiler<'a> {
                             match self.locals().iter().find(|(name, scope)| {
                                 *name == variable_name && *scope == current_scope
                             }) {
-                                Some(_) => self.errors.push(LoxError::new(
+                                Some(_) => self.error(
                                     format!("Variable {:?} is already defined", variable_name)
                                         .as_str(),
                                     ErrorContext::Compile,
                                     None,
-                                )),
+                                ),
                                 None => self.locals().push((variable_name, current_scope)),
                             }
                         }
@@ -134,17 +150,17 @@ impl<'a> Compiler<'a> {
                 }
             }
 
-            Some(token) => self.errors.push(LoxError::new(
+            Some(token) => self.error(
                 format!("unexpected {:?} #1", token).as_str(),
                 ErrorContext::Compile,
                 None,
-            )),
+            ),
 
-            None => self.errors.push(LoxError::new(
+            None => self.error(
                 "Unexpected end of script",
                 ErrorContext::Compile,
                 None,
-            )),
+            ),
         }
     }
 
@@ -156,11 +172,11 @@ impl<'a> Compiler<'a> {
                 if self.vm.function_exists(self.scope_depth, &function_name)
                     || resolve_nif(&function_name).is_some()
                 {
-                    self.errors.push(LoxError::new(
+                    self.error(
                         format!("Function {} already exists", function_name).as_str(),
                         ErrorContext::Compile,
                         None,
-                    ));
+                    );
                     return;
                 }
 
@@ -188,17 +204,17 @@ impl<'a> Compiler<'a> {
                                     break;
                                 }
 
-                                None => self.errors.push(LoxError::new(
+                                None => self.error(
                                     "Unexpected end of script",
                                     ErrorContext::Compile,
                                     None,
-                                )),
+                                ),
 
-                                _ => self.errors.push(LoxError::new(
+                                _ => self.error(
                                     format!("unexpected {:?} #1", token).as_str(),
                                     ErrorContext::Compile,
                                     None,
-                                )),
+                                ),
                             }
                         }
 
@@ -206,17 +222,17 @@ impl<'a> Compiler<'a> {
                             break;
                         }
 
-                        None => self.errors.push(LoxError::new(
+                        None => self.error(
                             "Unexpected end of script",
                             ErrorContext::Compile,
                             None,
-                        )),
+                        ),
 
-                        _ => self.errors.push(LoxError::new(
+                        _ => self.error(
                             format!("unexpected {:?} #1", token).as_str(),
                             ErrorContext::Compile,
                             None,
-                        )),
+                        ),
                     }
                 }
 
@@ -236,17 +252,17 @@ impl<'a> Compiler<'a> {
                 }
             }
 
-            None => self.errors.push(LoxError::new(
+            None => self.error(
                 "Unexpected end of script",
                 ErrorContext::Compile,
                 None,
-            )),
+            ),
 
-            Some(token) => self.errors.push(LoxError::new(
+            Some(token) => self.error(
                 format!("unexpected {:?} #1", token).as_str(),
                 ErrorContext::Compile,
                 None,
-            )),
+            ),
         }
     }
 
@@ -274,11 +290,14 @@ impl<'a> Compiler<'a> {
                             _ => (),
                         },
 
-                        None => self.errors.push(LoxError::new(
-                            "Unexpected end of script",
-                            ErrorContext::Compile,
-                            None,
-                        )),
+                        None => {
+                            self.error(
+                                "Unexpected end of script",
+                                ErrorContext::Compile,
+                                None,
+                            );
+                            break;
+                        }
                     }
                     self.compile_declaration();
                 }
@@ -293,11 +312,11 @@ impl<'a> Compiler<'a> {
             }
 
             None => {
-                self.errors.push(LoxError::new(
+                self.error(
                     "Unexpected end of script",
                     ErrorContext::Compile,
                     None,
-                ));
+                );
             }
 
             _ => {
@@ -357,11 +376,14 @@ impl<'a> Compiler<'a> {
 
                 Some(_) => break,
 
-                None => self.errors.push(LoxError::new(
-                    "Unexpected end of script",
-                    ErrorContext::Compile,
-                    None,
-                )),
+                None => {
+                    self.error(
+                        "Unexpected end of script",
+                        ErrorContext::Compile,
+                        None,
+                    );
+                    break;
+                }
             };
         }
     }
@@ -380,11 +402,14 @@ impl<'a> Compiler<'a> {
 
                 Some(_) => break,
 
-                None => self.errors.push(LoxError::new(
-                    "Unexpected end of script",
-                    ErrorContext::Compile,
-                    None,
-                )),
+                None => {
+                    self.error(
+                        "Unexpected end of script",
+                        ErrorContext::Compile,
+                        None,
+                    );
+                    break;
+                }
             };
         }
     }
@@ -407,11 +432,14 @@ impl<'a> Compiler<'a> {
 
                 Some(_) => break,
 
-                None => self.errors.push(LoxError::new(
-                    "Unexpected end of script",
-                    ErrorContext::Compile,
-                    None,
-                )),
+                None => {
+                    self.error(
+                        "Unexpected end of script",
+                        ErrorContext::Compile,
+                        None,
+                    );
+                    break;
+                }
             };
         }
     }
@@ -446,11 +474,14 @@ impl<'a> Compiler<'a> {
 
                 Some(_) => break,
 
-                None => self.errors.push(LoxError::new(
-                    "Unexpected end of script",
-                    ErrorContext::Compile,
-                    None,
-                )),
+                None => {
+                    self.error(
+                        "Unexpected end of script",
+                        ErrorContext::Compile,
+                        None,
+                    );
+                    break;
+                }
             };
         }
     }
@@ -479,11 +510,14 @@ impl<'a> Compiler<'a> {
 
                 Some(_) => break,
 
-                None => self.errors.push(LoxError::new(
-                    "Unexpected end of script",
-                    ErrorContext::Compile,
-                    None,
-                )),
+                None => {
+                    self.error(
+                        "Unexpected end of script",
+                        ErrorContext::Compile,
+                        None,
+                    );
+                    break;
+                }
             };
         }
     }
@@ -512,11 +546,14 @@ impl<'a> Compiler<'a> {
 
                 Some(_) => break,
 
-                None => self.errors.push(LoxError::new(
-                    "Unexpected end of script",
-                    ErrorContext::Compile,
-                    None,
-                )),
+                None => {
+                    self.error(
+                        "Unexpected end of script",
+                        ErrorContext::Compile,
+                        None,
+                    );
+                    break;
+                }
             };
         }
     }
@@ -570,25 +607,28 @@ impl<'a> Compiler<'a> {
                                             break;
                                         }
 
-                                        None => self.errors.push(LoxError::new(
+                                        None => self.error(
                                             "Unexpected end of script",
                                             ErrorContext::Compile,
                                             None,
-                                        )),
+                                        ),
 
-                                        _ => self.errors.push(LoxError::new(
+                                        _ => self.error(
                                             format!("unexpected {:?} #1", token).as_str(),
                                             ErrorContext::Compile,
                                             None,
-                                        )),
+                                        ),
                                     }
                                 }
 
-                                None => self.errors.push(LoxError::new(
-                                    "Unexpected end of script",
-                                    ErrorContext::Compile,
-                                    None,
-                                )),
+                                None => {
+                                    self.error(
+                                        "Unexpected end of script",
+                                        ErrorContext::Compile,
+                                        None,
+                                    );
+                                    break;
+                                }
                             }
                         }
 
@@ -627,11 +667,11 @@ impl<'a> Compiler<'a> {
                             self.add_constant(Value::String(name));
                         }
                         None => {
-                            self.errors.push(LoxError::new(
+                            self.error(
                                 "Cannot assign to captured variable",
                                 ErrorContext::Compile,
                                 None,
-                            ));
+                            );
                         }
                     },
                 }
@@ -639,11 +679,11 @@ impl<'a> Compiler<'a> {
 
             Some(token) if token.kind() == Kind::Equal => {
                 self.scanner.next();
-                self.errors.push(LoxError::new(
+                self.error(
                     "Invalid assignment target",
                     ErrorContext::Compile,
                     None,
-                ));
+                );
             }
 
             _ if address.is_some() => {
@@ -706,51 +746,63 @@ impl<'a> Compiler<'a> {
                         self.scanner.next();
                     }
 
-                    Some(_) => self.errors.push(LoxError::new(
+                    Some(_) => self.error(
                         format!("unexpected {:?} #2", token).as_str(),
                         ErrorContext::Compile,
                         None,
-                    )),
+                    ),
 
-                    None => self.errors.push(LoxError::new(
+                    None => self.error(
                         "Unexpected end of script",
                         ErrorContext::Compile,
                         None,
-                    )),
+                    ),
                 }
             }
 
-            Some(token) => self.errors.push(LoxError::new(
+            Some(token) if token.kind() == Kind::This => {
+                self.error("Feature 'this' is not yet implemented", ErrorContext::Compile, None);
+            }
+
+            Some(token) if token.kind() == Kind::Super => {
+                self.error("Feature 'super' is not yet implemented", ErrorContext::Compile, None);
+            }
+
+            Some(token) if token.kind() == Kind::Expands => {
+                self.error("Feature 'expands' is not yet implemented", ErrorContext::Compile, None);
+            }
+
+            Some(token) => self.error(
                 format!("unexpected {:?} #3", token).as_str(),
                 ErrorContext::Compile,
                 None,
-            )),
+            ),
 
-            None => self.errors.push(LoxError::new(
+            None => self.error(
                 "Unexpected end of script",
                 ErrorContext::Compile,
                 None,
-            )),
+            ),
         }
     }
 
     fn expect(&mut self, kind: Kind) {
-        match self.scanner.peek() {
+        match self.scanner.peek().cloned() {
             Some(token) if token.kind() == kind => {
                 self.scanner.next();
             }
 
-            Some(token) => self.errors.push(LoxError::new(
+            Some(token) => self.error(
                 format!("expected {:?}, got {:?}", kind, token).as_str(),
                 ErrorContext::Compile,
                 None,
-            )),
+            ),
 
-            None => self.errors.push(LoxError::new(
+            None => self.error(
                 "Unexpected end of script",
                 ErrorContext::Compile,
                 None,
-            )),
+            ),
         }
     }
 
@@ -780,5 +832,39 @@ impl<'a> Compiler<'a> {
     fn new_function(&mut self, name: String, arity: u128) {
         let function = Function::new(name, arity);
         self.functions.push(function);
+    }
+
+    fn error(&mut self, msg: &str, context: ErrorContext, line: Option<usize>) {
+        if !self.panicking {
+            self.errors.push(LoxError::new(msg, context, line));
+            self.panicking = true;
+        }
+    }
+
+    fn synchronize(&mut self) {
+        self.panicking = false;
+        loop {
+            match self.scanner.peek() {
+                Some(token) => match token.kind() {
+                    Kind::Semicolon => {
+                        self.scanner.next();
+                        return;
+                    }
+                    Kind::RightBrace
+                    | Kind::Let
+                    | Kind::Fun
+                    | Kind::While
+                    | Kind::If
+                    | Kind::Return
+                    | Kind::Eof => {
+                        return;
+                    }
+                    _ => {
+                        self.scanner.next();
+                    }
+                },
+                None => return,
+            }
+        }
     }
 }
