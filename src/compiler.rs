@@ -640,26 +640,7 @@ impl<'a> Compiler<'a> {
             Some(token) if token.kind() == Kind::Equal && can_assign => {
                 self.scanner.next();
                 self.compile_expression();
-                match address {
-                    Some(address) => {
-                        self.function().add_op(OpCode::SetLocal);
-                        self.function().add_address(address as usize);
-                    }
-
-                    None => match self.globals.iter().find(|variable| **variable == name) {
-                        Some(_) => {
-                            self.function().add_op(OpCode::SetGlobal);
-                            self.add_constant(Value::String(name));
-                        }
-                        None => {
-                            self.error(
-                                "Cannot assign to captured variable",
-                                ErrorContext::Compile,
-                                None,
-                            );
-                        }
-                    },
-                }
+                self.compile_assignment(name, address);
             }
 
             Some(token) if token.kind() == Kind::Equal => {
@@ -678,34 +659,61 @@ impl<'a> Compiler<'a> {
             }
 
             _ => {
-                let captured = match self.locals.as_slice().split_last() {
-                    Some((_, captured_frames)) => captured_frames
-                        .iter()
-                        .enumerate()
-                        .rev()
-                        .map(|(index, frame)| (index, frame.iter().enumerate()))
-                        .find_map(|(frame_index, mut frame)| {
-                            frame.find_map(|(index, item)| match item.0 == name {
-                                true => Some((frame_index, index)),
-                                false => None,
-                            })
-                        }),
+                self.resolve_captured_or_global(name);
+            }
+        }
+    }
 
-                    None => None,
-                };
+    fn compile_assignment(&mut self, name: String, address: Option<u128>) {
+        match address {
+            Some(address) => {
+                self.function().add_op(OpCode::SetLocal);
+                self.function().add_address(address as usize);
+            }
 
-                match captured {
-                    Some((frame, address)) => {
-                        self.function().add_op(OpCode::GetCaptured);
-                        self.add_constant(Value::String(name.clone()));
-                        self.function().add_capture(name, frame, address);
-                    }
-
-                    None => {
-                        self.function().add_op(OpCode::GetGlobal);
-                        self.add_constant(Value::String(name));
-                    }
+            None => match self.globals.iter().find(|variable| **variable == name) {
+                Some(_) => {
+                    self.function().add_op(OpCode::SetGlobal);
+                    self.add_constant(Value::String(name));
                 }
+                None => {
+                    self.error(
+                        "Cannot assign to captured variable",
+                        ErrorContext::Compile,
+                        None,
+                    );
+                }
+            },
+        }
+    }
+
+    fn resolve_captured_or_global(&mut self, name: String) {
+        let captured = match self.locals.as_slice().split_last() {
+            Some((_, captured_frames)) => captured_frames
+                .iter()
+                .enumerate()
+                .rev()
+                .map(|(index, frame)| (index, frame.iter().enumerate()))
+                .find_map(|(frame_index, mut frame)| {
+                    frame.find_map(|(index, item)| match item.0 == name {
+                        true => Some((frame_index, index)),
+                        false => None,
+                    })
+                }),
+
+            None => None,
+        };
+
+        match captured {
+            Some((frame, address)) => {
+                self.function().add_op(OpCode::GetCaptured);
+                self.add_constant(Value::String(name.clone()));
+                self.function().add_capture(name, frame, address);
+            }
+
+            None => {
+                self.function().add_op(OpCode::GetGlobal);
+                self.add_constant(Value::String(name));
             }
         }
     }
@@ -720,53 +728,54 @@ impl<'a> Compiler<'a> {
             Some(token) if token.kind() == Kind::False => self.add_constant(Value::Boolean(false)),
 
             Some(token) if token.kind() == Kind::LeftParen => {
-                self.compile_expression();
-                match self.scanner.peek() {
-                    Some(token) if token.kind() == Kind::RightParen => {
-                        self.scanner.next();
-                    }
-
-                    Some(_) => self.error(
-                        format!("unexpected {:?} #2", token).as_str(),
-                        ErrorContext::Compile,
-                        None,
-                    ),
-
-                    None => self.error("Unexpected end of script", ErrorContext::Compile, None),
-                }
+                self.compile_grouping(token);
             }
 
-            Some(token) if token.kind() == Kind::This => {
-                self.error(
-                    "Feature 'this' is not yet implemented",
-                    ErrorContext::Compile,
-                    None,
-                );
+            Some(token) => self.compile_primary_token(token),
+
+            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
+        }
+    }
+
+    fn compile_grouping(&mut self, open_token: crate::token::Token) {
+        self.compile_expression();
+        match self.scanner.peek() {
+            Some(token) if token.kind() == Kind::RightParen => {
+                self.scanner.next();
             }
 
-            Some(token) if token.kind() == Kind::Super => {
-                self.error(
-                    "Feature 'super' is not yet implemented",
-                    ErrorContext::Compile,
-                    None,
-                );
-            }
-
-            Some(token) if token.kind() == Kind::Expands => {
-                self.error(
-                    "Feature 'expands' is not yet implemented",
-                    ErrorContext::Compile,
-                    None,
-                );
-            }
-
-            Some(token) => self.error(
-                format!("unexpected {:?} #3", token).as_str(),
+            Some(_) => self.error(
+                format!("unexpected {:?} #2", open_token).as_str(),
                 ErrorContext::Compile,
                 None,
             ),
 
             None => self.error("Unexpected end of script", ErrorContext::Compile, None),
+        }
+    }
+
+    fn compile_primary_token(&mut self, token: crate::token::Token) {
+        match token.kind() {
+            Kind::This => self.error(
+                "Feature 'this' is not yet implemented",
+                ErrorContext::Compile,
+                None,
+            ),
+            Kind::Super => self.error(
+                "Feature 'super' is not yet implemented",
+                ErrorContext::Compile,
+                None,
+            ),
+            Kind::Expands => self.error(
+                "Feature 'expands' is not yet implemented",
+                ErrorContext::Compile,
+                None,
+            ),
+            _ => self.error(
+                format!("unexpected {:?} #3", token).as_str(),
+                ErrorContext::Compile,
+                None,
+            ),
         }
     }
 
