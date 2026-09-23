@@ -278,41 +278,7 @@ impl<'a> Compiler<'a> {
 
             Some(token) if token.kind() == Kind::LeftBrace => {
                 self.scanner.next();
-                if manage_scope {
-                    self.scope_depth += 1;
-                }
-                loop {
-                    match self.scanner.peek() {
-                        Some(token) => match token.kind() {
-                            Kind::RightBrace | Kind::Eof => break,
-                            _ => (),
-                        },
-
-                        None => {
-                            self.error("Unexpected end of script", ErrorContext::Compile, None);
-                            break;
-                        }
-                    }
-                    self.compile_declaration();
-                }
-                self.expect(Kind::RightBrace);
-
-                let current_scope = self.scope_depth;
-                if manage_scope {
-                    let pop_count = self
-                        .locals()
-                        .iter()
-                        .filter(|(_, scope)| *scope == current_scope)
-                        .count();
-                    for _ in 0..pop_count {
-                        self.function().add_op(OpCode::Pop);
-                    }
-                }
-                self.locals().retain(|(_, scope)| *scope != current_scope);
-
-                if manage_scope {
-                    self.scope_depth -= 1;
-                }
+                self.compile_block(manage_scope);
             }
 
             None => {
@@ -323,6 +289,44 @@ impl<'a> Compiler<'a> {
                 self.compile_expression();
                 self.expect(Kind::Semicolon);
             }
+        }
+    }
+
+    fn compile_block(&mut self, manage_scope: bool) {
+        if manage_scope {
+            self.scope_depth += 1;
+        }
+        loop {
+            match self.scanner.peek() {
+                Some(token) => match token.kind() {
+                    Kind::RightBrace | Kind::Eof => break,
+                    _ => (),
+                },
+
+                None => {
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
+                    break;
+                }
+            }
+            self.compile_declaration();
+        }
+        self.expect(Kind::RightBrace);
+
+        let current_scope = self.scope_depth;
+        if manage_scope {
+            let pop_count = self
+                .locals()
+                .iter()
+                .filter(|(_, scope)| *scope == current_scope)
+                .count();
+            for _ in 0..pop_count {
+                self.function().add_op(OpCode::Pop);
+            }
+        }
+        self.locals().retain(|(_, scope)| *scope != current_scope);
+
+        if manage_scope {
+            self.scope_depth -= 1;
         }
     }
 
@@ -561,52 +565,7 @@ impl<'a> Compiler<'a> {
                 match self.scanner.peek() {
                     Some(next) if next.kind() == Kind::LeftParen => {
                         self.scanner.next();
-                        let mut args = 0;
-                        loop {
-                            match self.scanner.peek() {
-                                Some(token) if token.kind() == Kind::RightParen => {
-                                    self.scanner.next();
-                                    break;
-                                }
-
-                                Some(_) => {
-                                    self.compile_expression();
-                                    args += 1;
-                                    match self.scanner.peek() {
-                                        Some(token) if token.kind() == Kind::Comma => {
-                                            self.scanner.next();
-                                            continue;
-                                        }
-
-                                        Some(token) if token.kind() == Kind::RightParen => {
-                                            self.scanner.next();
-                                            break;
-                                        }
-
-                                        None => self.error(
-                                            "Unexpected end of script",
-                                            ErrorContext::Compile,
-                                            None,
-                                        ),
-
-                                        _ => self.error(
-                                            format!("unexpected {:?} #1", token).as_str(),
-                                            ErrorContext::Compile,
-                                            None,
-                                        ),
-                                    }
-                                }
-
-                                None => {
-                                    self.error(
-                                        "Unexpected end of script",
-                                        ErrorContext::Compile,
-                                        None,
-                                    );
-                                    break;
-                                }
-                            }
-                        }
+                        let args = self.compile_arguments();
 
                         self.function().add_op(OpCode::Call);
                         self.add_constant(Value::Number(self.scope_depth as f64));
@@ -622,6 +581,56 @@ impl<'a> Compiler<'a> {
 
             _ => self.compile_primary(can_assign),
         }
+    }
+
+    fn compile_arguments(&mut self) -> i32 {
+        let mut args = 0;
+        loop {
+            match self.scanner.peek() {
+                Some(token) if token.kind() == Kind::RightParen => {
+                    self.scanner.next();
+                    break;
+                }
+
+                Some(_) => {
+                    self.compile_expression();
+                    args += 1;
+                    match self.scanner.peek() {
+                        Some(token) if token.kind() == Kind::Comma => {
+                            self.scanner.next();
+                            continue;
+                        }
+
+                        Some(token) if token.kind() == Kind::RightParen => {
+                            self.scanner.next();
+                            break;
+                        }
+
+                        None => self.error(
+                            "Unexpected end of script",
+                            ErrorContext::Compile,
+                            None,
+                        ),
+
+                        _ => self.error(
+                            "unexpected token in argument list",
+                            ErrorContext::Compile,
+                            None,
+                        ),
+                    }
+                }
+
+                None => {
+                    self.error(
+                        "Unexpected end of script",
+                        ErrorContext::Compile,
+                        None,
+                    );
+                    break;
+                }
+            }
+        }
+        args
     }
 
     fn compile_identifier(&mut self, name: String, can_assign: bool) {
