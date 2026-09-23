@@ -159,6 +159,17 @@ impl VM {
                     self.stack_push(Value::Number(left + right))
                 }
 
+                OpCode::Subtract => {
+                    let Some(Value::Number(right)) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+                    let Some(Value::Number(left)) = self.stack_pop() else {
+                        return InterpretResult::RuntimeError;
+                    };
+
+                    self.stack_push(Value::Number(left - right))
+                }
+
                 OpCode::Multiply => {
                     let Some(Value::Number(right)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;

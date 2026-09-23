@@ -359,6 +359,36 @@ mod test {
         );
     }
 
+    #[test]
+    fn operator_precedence() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"print(2 + 3 == 5);"#.to_string()),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["true"]);
+    }
+
+    #[test]
+    fn subtraction() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"print(10 - 3);"#.to_string()),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["7"]);
+    }
+
+    #[test]
+    fn mixed_precedence() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"print(2 + 3 * 4);"#.to_string()),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["14"]);
+    }
+
     // #[test]
     // fn closure_in_while() {
     //     let mut vm = VM::new();

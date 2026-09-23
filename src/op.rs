@@ -28,6 +28,7 @@ pub(crate) enum OpCode {
     GetCaptured,
     MakeClosure,
     GreaterEqual,
+    Subtract,
 
     Invalid,
 }
@@ -79,6 +80,7 @@ impl From<u8> for OpCode {
             25 => Self::GetCaptured,
             26 => Self::MakeClosure,
             27 => Self::GreaterEqual,
+            28 => Self::Subtract,
             _ => Self::Invalid,
         }
     }
@@ -115,6 +117,7 @@ impl From<OpCode> for u8 {
             OpCode::GetCaptured => 25,
             OpCode::MakeClosure => 26,
             OpCode::GreaterEqual => 27,
+            OpCode::Subtract => 28,
             OpCode::Invalid => 255,
         }
     }
