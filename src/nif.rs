@@ -217,15 +217,37 @@ impl Nif for PrintLn {
 
     #[cfg(not(test))]
     fn call(&self, vm: &mut VM, args_count: usize) -> Result<(), InterpretResult> {
-        let _ = Print.call(vm, args_count);
+        let mut args = vec![];
+        for _ in 0..args_count {
+            args.push(vm.stack_pop().unwrap());
+        }
+        args.iter()
+            .rev()
+            .map(|item| {
+                let item: String = item.clone().into();
+                item
+            })
+            .for_each(|item| print!("{}", item));
         println!();
+        vm.stack_push(Value::Nil);
         Ok(())
     }
 
     #[cfg(test)]
     fn call(&self, vm: &mut VM, args_count: usize) -> Result<(), InterpretResult> {
-        let _ = Print.call(vm, args_count);
+        let mut args = vec![];
+        for _ in 0..args_count {
+            args.push(vm.stack_pop().unwrap());
+        }
+        args.iter()
+            .rev()
+            .map(|item| {
+                let item: String = item.clone().into();
+                item
+            })
+            .for_each(|item| vm.get_stdout().push(item));
         vm.get_stdout().push("\n".to_string());
+        vm.stack_push(Value::Nil);
         Ok(())
     }
 }
