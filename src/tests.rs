@@ -472,4 +472,230 @@ mod test {
         );
         assert_eq!(vm.stdout, vec!["5", "4", "3", "2", "1"]);
     }
+
+    #[test]
+    fn arithmetic_ops() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"print(2 + 3); print(7 - 4); print(3 * 4); print(9 / 4); print(10 % 3);"#
+                    .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["5", "3", "12", "2.25", "1"]);
+    }
+
+    #[test]
+    fn comparison_ops() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    print(3 == 3);
+                    print(3 != 4);
+                    print(5 > 3);
+                    print(5 >= 5);
+                    print(3 < 5);
+                    print(3 <= 3);
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(
+            vm.stdout,
+            vec!["true", "true", "true", "true", "true", "true"]
+        );
+    }
+
+    #[test]
+    fn variable_access_ops() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    let g = "init";
+                    g = "updated";
+                    print(g);
+                    { let l = "local"; l = "changed"; print(l); }
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["updated", "changed"]);
+    }
+
+    #[test]
+    fn control_flow_ops() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    if true { print("yes"); } else { print("no"); }
+                    if false { print("no"); } else { print("yes"); }
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["yes", "yes"]);
+    }
+
+    #[test]
+    fn closures_ops() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun make_adder(n) {
+                        fun add(x) { return n + x; }
+                        return add;
+                    }
+                    let add5 = make_adder(5);
+                    print(add5(3));
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["8"]);
+    }
+
+    #[test]
+    fn calls_ops() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun double(x) { return x * 2; }
+                    print(double(7));
+                    print(type_of(42));
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["14", "number"]);
+    }
+
+    #[test]
+    fn scanner_string_with_newline() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret("print(\"line1\nline2\");".to_string()),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["line1\nline2"]);
+    }
+
+    #[test]
+    fn scanner_number_with_decimal() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"print(123.5 + 0.5);"#.to_string()),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["124"]);
+    }
+
+    #[test]
+    fn scanner_multi_char_operators() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    print(1 == 1);
+                    print(1 != 2);
+                    print(2 <= 3);
+                    print(3 >= 2);
+                    print("a" <> "b");
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["true", "true", "true", "true", "ab"]);
+    }
+
+    #[test]
+    fn scanner_keyword_vs_identifier() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    let truth = true;
+                    let falsy = false;
+                    let nothing = nil;
+                    print(truth);
+                    print(falsy);
+                    print(nothing);
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["true", "false", "nil"]);
+    }
+
+    #[test]
+    fn compiler_empty_params() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun no_args() { return 42; }
+                    print(no_args());
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["42"]);
+    }
+
+    #[test]
+    fn compiler_single_param() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun square(n) { return n * n; }
+                    print(square(7));
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["49"]);
+    }
+
+    #[test]
+    fn compiler_max_nesting_depth() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    let a = 1;
+                    {
+                        let b = 2;
+                        {
+                            let c = 3;
+                            {
+                                let d = 4;
+                                print(a + b + c + d);
+                            }
+                            print(a + b + c);
+                        }
+                        print(a + b);
+                    }
+                    print(a);
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["10", "6", "3", "1"]);
+    }
 }
