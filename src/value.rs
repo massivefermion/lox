@@ -89,9 +89,13 @@ impl Display for Value {
 
 impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
-        match self.get_type() == other.get_type() {
-            false => false,
-            true => self.clone().to_string() == other.clone().to_string(),
+        match (self, other) {
+            (Self::Nil, Self::Nil) => true,
+            (Self::Boolean(a), Self::Boolean(b)) => a == b,
+            (Self::Number(a), Self::Number(b)) => a == b,
+            (Self::String(a), Self::String(b)) => a == b,
+            (Self::Function(_), Self::Function(_)) => false,
+            _ => false,
         }
     }
 }

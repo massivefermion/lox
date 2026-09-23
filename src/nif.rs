@@ -56,6 +56,9 @@ impl Nif for Div {
             (Value::Number(_), Value::Number(_)) => {
                 let left: i128 = left.into();
                 let right: i128 = right.into();
+                if right == 0 {
+                    return Err(InterpretResult::RuntimeError);
+                }
                 vm.stack_push(Value::Number((left / right) as f64));
                 Ok(())
             }
@@ -137,6 +140,7 @@ impl Nif for Print {
             })
             .for_each(|item| print!("{}", item));
 
+        vm.stack_push(Value::Nil);
         Ok(())
     }
 
@@ -156,6 +160,7 @@ impl Nif for Print {
             })
             .for_each(|item| vm.get_stdout().push(item));
 
+        vm.stack_push(Value::Nil);
         Ok(())
     }
 }
@@ -212,15 +217,37 @@ impl Nif for PrintLn {
 
     #[cfg(not(test))]
     fn call(&self, vm: &mut VM, args_count: usize) -> Result<(), InterpretResult> {
-        let _ = Print.call(vm, args_count);
+        let mut args = vec![];
+        for _ in 0..args_count {
+            args.push(vm.stack_pop().unwrap());
+        }
+        args.iter()
+            .rev()
+            .map(|item| {
+                let item: String = item.clone().into();
+                item
+            })
+            .for_each(|item| print!("{}", item));
         println!();
+        vm.stack_push(Value::Nil);
         Ok(())
     }
 
     #[cfg(test)]
     fn call(&self, vm: &mut VM, args_count: usize) -> Result<(), InterpretResult> {
-        let _ = Print.call(vm, args_count);
+        let mut args = vec![];
+        for _ in 0..args_count {
+            args.push(vm.stack_pop().unwrap());
+        }
+        args.iter()
+            .rev()
+            .map(|item| {
+                let item: String = item.clone().into();
+                item
+            })
+            .for_each(|item| vm.get_stdout().push(item));
         vm.get_stdout().push("\n".to_string());
+        vm.stack_push(Value::Nil);
         Ok(())
     }
 }

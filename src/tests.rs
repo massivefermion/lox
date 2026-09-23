@@ -221,28 +221,28 @@ mod test {
         assert_eq!(vm.stdout, vec!["2", "5", "1", "4", "0", "3",]);
     }
 
-    // #[test]
-    // fn local_while() {
-    //     let mut vm = VM::new();
-    //     assert_eq!(
-    //         vm.interpret(
-    //             r#"
-    //                 {
-    //                     let a = 2;
-    //                     let b = 5;
-    //                     while a * b != -2 {
-    //                         print(a, b);
-    //                         a = a - 1;
-    //                         b = b - 1;
-    //                     }
-    //                 }
-    //             "#
-    //             .to_string()
-    //         ),
-    //         InterpretResult::Ok
-    //     );
-    //     assert_eq!(vm.stdout, vec!["2", "5", "1", "4", "0", "3",]);
-    // }
+    #[test]
+    fn local_while() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    {
+                        let a = 2;
+                        let b = 5;
+                        while a * b != -2 {
+                            print(a, b);
+                            a = a - 1;
+                            b = b - 1;
+                        }
+                    }
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["2", "5", "1", "4", "0", "3",]);
+    }
 
     #[test]
     fn parse_test() {
@@ -309,49 +309,167 @@ mod test {
         assert_eq!(vm.stdout, vec!["U-235", "\n"]);
     }
 
-    // #[test]
-    // fn return_in_while() {
-    //     let mut vm = VM::new();
-    //     assert_eq!(
-    //         vm.interpret(
-    //             r#"
-    //                 fun make_closure() {
-    //                     while true {
-    //                         let i = "i";
-    //                         fun show() print(i);
-    //                         return show;
-    //                     }
-    //                 }
-    //                 let closure = make_closure();
-    //                 closure();
-    //             "#
-    //             .to_string()
-    //         ),
-    //         InterpretResult::Ok
-    //     );
-    //     assert_eq!(vm.stdout, vec!["i"]);
-    // }
+    #[test]
+    fn return_in_while() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun make_closure() {
+                        while true {
+                            let i = "i";
+                            fun show() print(i);
+                            return show;
+                        }
+                    }
+                    let closure = make_closure();
+                    closure();
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["i"]);
+    }
 
-    // #[test]
-    // fn closure_in_while() {
-    //     let mut vm = VM::new();
-    //     assert_eq!(
-    //         vm.interpret(
-    //             r#"
-    //                 fun make_closures() {
-    //                     let i = 5;
-    //                     while i {
-    //                         fun closure() { print(i); }
-    //                         i = i - 1;
-    //                         closure();
-    //                     }
-    //                 }
-    //                 make_closures();
-    //             "#
-    //             .to_string()
-    //         ),
-    //         InterpretResult::Ok
-    //     );
-    //     assert_eq!(vm.stdout, vec!["5", "4", "3", "2", "1"]);
-    // }
+    #[test]
+    fn div_by_zero_nif() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"print(div(1, 0));"#.to_string()),
+            InterpretResult::RuntimeError
+        );
+    }
+
+    #[test]
+    fn divide_by_zero() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"print(1 / 0);"#.to_string()),
+            InterpretResult::RuntimeError
+        );
+    }
+
+    #[test]
+    fn rem_by_zero() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"print(1 % 0);"#.to_string()),
+            InterpretResult::RuntimeError
+        );
+    }
+
+    #[test]
+    fn operator_precedence() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"print(2 + 3 == 5);"#.to_string()),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["true"]);
+    }
+
+    #[test]
+    fn subtraction() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"print(10 - 3);"#.to_string()),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["7"]);
+    }
+
+    #[test]
+    fn mixed_precedence() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"print(2 + 3 * 4);"#.to_string()),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["14"]);
+    }
+
+    #[test]
+    fn error_recovery() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    let x = ;
+                    let y = 5;
+                    print(y);
+                "#
+                .to_string()
+            ),
+            InterpretResult::CompileError
+        );
+    }
+
+    #[test]
+    fn unimplemented_for() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"for (let i = 0; i < 10; i = i + 1) { print(i); }"#.to_string()),
+            InterpretResult::CompileError
+        );
+    }
+
+    #[test]
+    fn unimplemented_class() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"class Foo {}"#.to_string()),
+            InterpretResult::CompileError
+        );
+    }
+
+    #[test]
+    fn unimplemented_this() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"this;"#.to_string()),
+            InterpretResult::CompileError
+        );
+    }
+
+    #[test]
+    fn unimplemented_super() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"super;"#.to_string()),
+            InterpretResult::CompileError
+        );
+    }
+
+    #[test]
+    fn unimplemented_expands() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"expands;"#.to_string()),
+            InterpretResult::CompileError
+        );
+    }
+
+    #[test]
+    fn closure_in_while() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun make_closures() {
+                        let i = 5;
+                        while i {
+                            fun closure() { print(i); }
+                            i = i - 1;
+                            closure();
+                        }
+                    }
+                    make_closures();
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["5", "4", "3", "2", "1"]);
+    }
 }

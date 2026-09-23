@@ -1,7 +1,5 @@
 use std::iter::Peekable;
 
-use rand::{distributions::Alphanumeric, Rng};
-
 use crate::error::{ErrorContext, InterpretResult, LoxError};
 use crate::function::Function;
 use crate::nif::resolve_nif;
@@ -16,6 +14,7 @@ pub(crate) struct Compiler<'a> {
     scope_depth: u128,
     globals: Vec<String>,
     errors: Vec<LoxError>,
+    panicking: bool,
     functions: Vec<Function>,
     locals: Vec<Vec<(String, u128)>>,
     scanner: Peekable<Scanner<'a>>,
@@ -27,6 +26,7 @@ impl<'a> Compiler<'a> {
             vm,
             errors: vec![],
             globals: vec![],
+            panicking: false,
             locals: vec![vec![]],
             scope_depth: 0,
             functions: vec![function],
@@ -70,35 +70,36 @@ impl<'a> Compiler<'a> {
                     self.compile_expression();
                     self.expect(Kind::Semicolon);
 
-                    if self.function().is_loop() {
-                        loop {
-                            self.scope_depth -= 1;
-                            self.function().add_op(OpCode::Return);
-                            let function = self.functions.pop().unwrap();
-                            self.locals.pop();
-                            self.vm.add_loop(function.clone());
-
-                            self.function().add_op(OpCode::Loop);
-                            self.add_constant(Value::String(function.name()));
-
-                            if !self.function().is_loop() {
-                                break;
-                            }
-                        }
-                    }
-
                     self.function().add_op(OpCode::Return);
                     self.function().already_returns();
+                }
+
+                Kind::For => {
+                    self.scanner.next();
+                    self.error(
+                        "Feature 'for' is not yet implemented",
+                        ErrorContext::Compile,
+                        None,
+                    );
+                }
+
+                Kind::Class => {
+                    self.scanner.next();
+                    self.error(
+                        "Feature 'class' is not yet implemented",
+                        ErrorContext::Compile,
+                        None,
+                    );
                 }
 
                 _ => self.compile_statement(true),
             },
 
-            None => self.errors.push(LoxError::new(
-                "Unexpected end of script",
-                ErrorContext::Compile,
-                None,
-            )),
+            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
+        }
+
+        if self.panicking {
+            self.synchronize();
         }
     }
 
@@ -117,11 +118,7 @@ impl<'a> Compiler<'a> {
                         _ => self.function().add_op(OpCode::Nil),
                     },
 
-                    None => self.errors.push(LoxError::new(
-                        "Unexpected end of script",
-                        ErrorContext::Compile,
-                        None,
-                    )),
+                    None => self.error("Unexpected end of script", ErrorContext::Compile, None),
                 }
                 self.expect(Kind::Semicolon);
 
@@ -140,12 +137,12 @@ impl<'a> Compiler<'a> {
                             match self.locals().iter().find(|(name, scope)| {
                                 *name == variable_name && *scope == current_scope
                             }) {
-                                Some(_) => self.errors.push(LoxError::new(
+                                Some(_) => self.error(
                                     format!("Variable {:?} is already defined", variable_name)
                                         .as_str(),
                                     ErrorContext::Compile,
                                     None,
-                                )),
+                                ),
                                 None => self.locals().push((variable_name, current_scope)),
                             }
                         }
@@ -153,17 +150,13 @@ impl<'a> Compiler<'a> {
                 }
             }
 
-            Some(token) => self.errors.push(LoxError::new(
+            Some(token) => self.error(
                 format!("unexpected {:?} #1", token).as_str(),
                 ErrorContext::Compile,
                 None,
-            )),
+            ),
 
-            None => self.errors.push(LoxError::new(
-                "Unexpected end of script",
-                ErrorContext::Compile,
-                None,
-            )),
+            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
         }
     }
 
@@ -175,11 +168,11 @@ impl<'a> Compiler<'a> {
                 if self.vm.function_exists(self.scope_depth, &function_name)
                     || resolve_nif(&function_name).is_some()
                 {
-                    self.errors.push(LoxError::new(
+                    self.error(
                         format!("Function {} already exists", function_name).as_str(),
                         ErrorContext::Compile,
                         None,
-                    ));
+                    );
                     return;
                 }
 
@@ -207,17 +200,17 @@ impl<'a> Compiler<'a> {
                                     break;
                                 }
 
-                                None => self.errors.push(LoxError::new(
+                                None => self.error(
                                     "Unexpected end of script",
                                     ErrorContext::Compile,
                                     None,
-                                )),
+                                ),
 
-                                _ => self.errors.push(LoxError::new(
+                                _ => self.error(
                                     format!("unexpected {:?} #1", token).as_str(),
                                     ErrorContext::Compile,
                                     None,
-                                )),
+                                ),
                             }
                         }
 
@@ -225,17 +218,13 @@ impl<'a> Compiler<'a> {
                             break;
                         }
 
-                        None => self.errors.push(LoxError::new(
-                            "Unexpected end of script",
-                            ErrorContext::Compile,
-                            None,
-                        )),
+                        None => self.error("Unexpected end of script", ErrorContext::Compile, None),
 
-                        _ => self.errors.push(LoxError::new(
+                        _ => self.error(
                             format!("unexpected {:?} #1", token).as_str(),
                             ErrorContext::Compile,
                             None,
-                        )),
+                        ),
                     }
                 }
 
@@ -255,17 +244,13 @@ impl<'a> Compiler<'a> {
                 }
             }
 
-            None => self.errors.push(LoxError::new(
-                "Unexpected end of script",
-                ErrorContext::Compile,
-                None,
-            )),
+            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
 
-            Some(token) => self.errors.push(LoxError::new(
+            Some(token) => self.error(
                 format!("unexpected {:?} #1", token).as_str(),
                 ErrorContext::Compile,
                 None,
-            )),
+            ),
         }
     }
 
@@ -293,17 +278,26 @@ impl<'a> Compiler<'a> {
                             _ => (),
                         },
 
-                        None => self.errors.push(LoxError::new(
-                            "Unexpected end of script",
-                            ErrorContext::Compile,
-                            None,
-                        )),
+                        None => {
+                            self.error("Unexpected end of script", ErrorContext::Compile, None);
+                            break;
+                        }
                     }
                     self.compile_declaration();
                 }
                 self.expect(Kind::RightBrace);
 
                 let current_scope = self.scope_depth;
+                if manage_scope {
+                    let pop_count = self
+                        .locals()
+                        .iter()
+                        .filter(|(_, scope)| *scope == current_scope)
+                        .count();
+                    for _ in 0..pop_count {
+                        self.function().add_op(OpCode::Pop);
+                    }
+                }
                 self.locals().retain(|(_, scope)| *scope != current_scope);
 
                 if manage_scope {
@@ -312,11 +306,7 @@ impl<'a> Compiler<'a> {
             }
 
             None => {
-                self.errors.push(LoxError::new(
-                    "Unexpected end of script",
-                    ErrorContext::Compile,
-                    None,
-                ));
+                self.error("Unexpected end of script", ErrorContext::Compile, None);
             }
 
             _ => {
@@ -346,78 +336,126 @@ impl<'a> Compiler<'a> {
     }
 
     fn compile_while(&mut self) {
-        let name: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(16)
-            .map(char::from)
-            .collect();
-
-        self.scope_depth += 1;
-        self.locals.push(vec![]);
-        self.new_loop(name.clone());
-
+        let loop_start = self.function().code_size();
         self.compile_expression();
-
-        let jump_address = self.function().add_jump(true);
+        let exit_jump = self.function().add_jump(true);
         self.function().add_op(OpCode::Pop);
-
-        self.compile_statement(false);
-
-        if self.function().is_loop() {
-            self.function().add_op(OpCode::Loop);
-            self.add_constant(Value::String(name.clone()));
-
-            self.function().patch_jump(jump_address);
-            self.function().add_op(OpCode::Pop);
-
-            self.scope_depth -= 1;
-            let function = self.functions.pop().unwrap();
-            self.locals.pop();
-            self.vm.add_loop(function);
-
-            self.function().add_op(OpCode::Loop);
-            self.add_constant(Value::String(name));
-        }
+        self.compile_statement(true);
+        self.function().add_jump_back(loop_start);
+        self.function().patch_jump(exit_jump);
+        self.function().add_op(OpCode::Pop);
     }
 
     fn compile_expression(&mut self) {
-        self.compile_term(true);
+        self.compile_or(true);
+    }
+
+    fn compile_or(&mut self, can_assign: bool) {
+        self.compile_and(can_assign);
         loop {
             match self.scanner.peek() {
-                Some(token) if token.kind() == Kind::Minus => {
-                    self.compile_term(false);
-                    self.function().add_op(OpCode::Add);
-                }
-
-                Some(token) if token.kind() == Kind::Plus => {
-                    self.scanner.next();
-                    self.compile_term(false);
-                    self.function().add_op(OpCode::Add);
-                }
-
-                Some(token) if token.kind() == Kind::Concat => {
-                    self.scanner.next();
-                    self.compile_term(false);
-                    self.function().add_op(OpCode::Concat)
-                }
-
                 Some(token) if token.kind() == Kind::Or => {
                     self.scanner.next();
                     let else_jump_address = self.function().add_jump(true);
                     let end_jump_address = self.function().add_jump(false);
                     self.function().patch_jump(else_jump_address);
                     self.function().add_op(OpCode::Pop);
-                    self.compile_term(false);
+                    self.compile_and(false);
                     self.function().patch_jump(end_jump_address);
                 }
 
                 Some(_) => break,
 
-                None => self.errors.push(LoxError::new(
-                    "Unexpected end of script",
-                    ErrorContext::Compile,
-                    None,
-                )),
+                None => {
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
+                    break;
+                }
+            };
+        }
+    }
+
+    fn compile_and(&mut self, can_assign: bool) {
+        self.compile_equality(can_assign);
+        loop {
+            match self.scanner.peek() {
+                Some(token) if token.kind() == Kind::And => {
+                    self.scanner.next();
+                    let jump_address = self.function().add_jump(true);
+                    self.function().add_op(OpCode::Pop);
+                    self.compile_equality(false);
+                    self.function().patch_jump(jump_address);
+                }
+
+                Some(_) => break,
+
+                None => {
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
+                    break;
+                }
+            };
+        }
+    }
+
+    fn compile_equality(&mut self, can_assign: bool) {
+        self.compile_comparison(can_assign);
+        loop {
+            match self.scanner.peek() {
+                Some(token) if token.kind() == Kind::EqualEqual => {
+                    self.scanner.next();
+                    self.compile_comparison(false);
+                    self.function().add_op(OpCode::Equal);
+                }
+
+                Some(token) if token.kind() == Kind::BangEqual => {
+                    self.scanner.next();
+                    self.compile_comparison(false);
+                    self.function().add_op(OpCode::NotEqual);
+                }
+
+                Some(_) => break,
+
+                None => {
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
+                    break;
+                }
+            };
+        }
+    }
+
+    fn compile_comparison(&mut self, can_assign: bool) {
+        self.compile_term(can_assign);
+        loop {
+            match self.scanner.peek() {
+                Some(token) if token.kind() == Kind::Greater => {
+                    self.scanner.next();
+                    self.compile_term(false);
+                    self.function().add_op(OpCode::Greater);
+                }
+
+                Some(token) if token.kind() == Kind::GreaterEqual => {
+                    self.scanner.next();
+                    self.compile_term(false);
+                    self.function().add_op(OpCode::GreaterEqual);
+                }
+
+                Some(token) if token.kind() == Kind::Less => {
+                    self.scanner.next();
+                    self.compile_term(false);
+                    self.function().add_op(OpCode::Less);
+                }
+
+                Some(token) if token.kind() == Kind::LessEqual => {
+                    self.scanner.next();
+                    self.compile_term(false);
+                    self.function().add_op(OpCode::LessEqual);
+                }
+
+                Some(_) => break,
+
+                None => {
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
+                    break;
+                }
             };
         }
     }
@@ -426,159 +464,92 @@ impl<'a> Compiler<'a> {
         self.compile_factor(can_assign);
         loop {
             match self.scanner.peek() {
-                Some(token) if token.kind() == Kind::Star => {
+                Some(token) if token.kind() == Kind::Plus => {
                     self.scanner.next();
                     self.compile_factor(false);
-                    self.function().add_op(OpCode::Multiply);
+                    self.function().add_op(OpCode::Add);
                 }
 
-                Some(token) if token.kind() == Kind::Slash => {
+                Some(token) if token.kind() == Kind::Minus => {
                     self.scanner.next();
                     self.compile_factor(false);
-                    self.function().add_op(OpCode::Divide);
+                    self.function().add_op(OpCode::Subtract);
                 }
 
-                Some(token) if token.kind() == Kind::Percent => {
+                Some(token) if token.kind() == Kind::Concat => {
                     self.scanner.next();
                     self.compile_factor(false);
-                    self.function().add_op(OpCode::Rem);
-                }
-
-                Some(token) if token.kind() == Kind::And => {
-                    self.scanner.next();
-                    let jump_address = self.function().add_jump(true);
-                    self.function().add_op(OpCode::Pop);
-                    self.compile_factor(false);
-                    self.function().patch_jump(jump_address);
-                }
-
-                Some(token) if token.kind() == Kind::EqualEqual => {
-                    self.scanner.next();
-                    self.compile_factor(false);
-                    self.function().add_op(OpCode::Equal);
-                }
-
-                Some(token) if token.kind() == Kind::BangEqual => {
-                    self.scanner.next();
-                    self.compile_factor(false);
-                    self.function().add_op(OpCode::NotEqual);
-                }
-
-                Some(token) if token.kind() == Kind::GreaterEqual => {
-                    self.scanner.next();
-                    self.compile_factor(false);
-                    self.function().add_op(OpCode::GreaterEqual);
-                }
-
-                Some(token) if token.kind() == Kind::Greater => {
-                    self.scanner.next();
-                    self.compile_factor(false);
-                    self.function().add_op(OpCode::Greater);
-                }
-
-                Some(token) if token.kind() == Kind::LessEqual => {
-                    self.scanner.next();
-                    self.compile_factor(false);
-                    self.function().add_op(OpCode::LessEqual);
-                }
-
-                Some(token) if token.kind() == Kind::Less => {
-                    self.scanner.next();
-                    self.compile_factor(false);
-                    self.function().add_op(OpCode::Less);
+                    self.function().add_op(OpCode::Concat);
                 }
 
                 Some(_) => break,
 
-                None => self.errors.push(LoxError::new(
-                    "Unexpected end of script",
-                    ErrorContext::Compile,
-                    None,
-                )),
+                None => {
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
+                    break;
+                }
             };
         }
     }
 
     fn compile_factor(&mut self, can_assign: bool) {
-        match self.scanner.next() {
-            Some(token) if token.kind() == Kind::Nil => self.function().add_op(OpCode::Nil),
-            Some(token) if [Kind::Number, Kind::String].contains(&token.kind()) => {
-                self.add_constant(token.value().unwrap())
-            }
-            Some(token) if token.kind() == Kind::True => self.add_constant(Value::Boolean(true)),
-            Some(token) if token.kind() == Kind::False => self.add_constant(Value::Boolean(false)),
+        self.compile_unary(can_assign);
+        loop {
+            match self.scanner.peek() {
+                Some(token) if token.kind() == Kind::Star => {
+                    self.scanner.next();
+                    self.compile_unary(false);
+                    self.function().add_op(OpCode::Multiply);
+                }
 
+                Some(token) if token.kind() == Kind::Slash => {
+                    self.scanner.next();
+                    self.compile_unary(false);
+                    self.function().add_op(OpCode::Divide);
+                }
+
+                Some(token) if token.kind() == Kind::Percent => {
+                    self.scanner.next();
+                    self.compile_unary(false);
+                    self.function().add_op(OpCode::Rem);
+                }
+
+                Some(_) => break,
+
+                None => {
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
+                    break;
+                }
+            };
+        }
+    }
+
+    fn compile_unary(&mut self, can_assign: bool) {
+        match self.scanner.peek() {
             Some(token) if token.kind() == Kind::Not => {
-                self.compile_factor(can_assign);
+                self.scanner.next();
+                self.compile_unary(false);
                 self.function().add_op(OpCode::Not);
             }
 
             Some(token) if token.kind() == Kind::Minus => {
-                self.compile_factor(can_assign);
+                self.scanner.next();
+                self.compile_unary(false);
                 self.function().add_op(OpCode::Negate);
             }
 
-            Some(token) if token.kind() == Kind::LeftParen => {
-                self.compile_expression();
-                match self.scanner.peek() {
-                    Some(token) if token.kind() == Kind::RightParen => {
-                        self.scanner.next();
-                    }
+            _ => self.compile_call(can_assign),
+        }
+    }
 
-                    Some(_) => self.errors.push(LoxError::new(
-                        format!("unexpected {:?} #2", token).as_str(),
-                        ErrorContext::Compile,
-                        None,
-                    )),
-
-                    None => self.errors.push(LoxError::new(
-                        "Unexpected end of script",
-                        ErrorContext::Compile,
-                        None,
-                    )),
-                }
-            }
-
+    fn compile_call(&mut self, can_assign: bool) {
+        match self.scanner.peek() {
             Some(token) if token.kind() == Kind::Identifier => {
+                let token = self.scanner.next().unwrap();
                 let name: String = token.value().unwrap().into();
-                let address = self.resolve_local(name.clone());
 
-                match self.scanner.peek().cloned() {
-                    Some(token) if token.kind() == Kind::Equal && can_assign => {
-                        self.scanner.next();
-                        self.compile_expression();
-                        match address {
-                            Some(address) => {
-                                self.function().add_op(OpCode::SetLocal);
-                                self.function().add_address(address as usize);
-                            }
-
-                            None => match self.globals.iter().find(|variable| **variable == name) {
-                                Some(_) => {
-                                    self.function().add_op(OpCode::SetGlobal);
-                                    self.add_constant(Value::String(name));
-                                }
-                                None => {
-                                    self.errors.push(LoxError::new(
-                                        "Cannot assign to captured variable",
-                                        ErrorContext::Compile,
-                                        None,
-                                    ));
-                                }
-                            },
-                        }
-                    }
-
-                    Some(token) if token.kind() == Kind::Equal => {
-                        self.scanner.next();
-                        self.errors.push(LoxError::new(
-                            "Invalid assignment target",
-                            ErrorContext::Compile,
-                            None,
-                        ));
-                    }
-
-                    Some(_token) if _token.kind() == Kind::LeftParen => {
+                match self.scanner.peek() {
+                    Some(next) if next.kind() == Kind::LeftParen => {
                         self.scanner.next();
                         let mut args = 0;
                         loop {
@@ -602,25 +573,28 @@ impl<'a> Compiler<'a> {
                                             break;
                                         }
 
-                                        None => self.errors.push(LoxError::new(
+                                        None => self.error(
                                             "Unexpected end of script",
                                             ErrorContext::Compile,
                                             None,
-                                        )),
+                                        ),
 
-                                        _ => self.errors.push(LoxError::new(
+                                        _ => self.error(
                                             format!("unexpected {:?} #1", token).as_str(),
                                             ErrorContext::Compile,
                                             None,
-                                        )),
+                                        ),
                                     }
                                 }
 
-                                None => self.errors.push(LoxError::new(
-                                    "Unexpected end of script",
-                                    ErrorContext::Compile,
-                                    None,
-                                )),
+                                None => {
+                                    self.error(
+                                        "Unexpected end of script",
+                                        ErrorContext::Compile,
+                                        None,
+                                    );
+                                    break;
+                                }
                             }
                         }
 
@@ -630,81 +604,166 @@ impl<'a> Compiler<'a> {
                         self.add_constant(token.value().unwrap());
                     }
 
-                    _ if address.is_some() => {
-                        self.function().add_op(OpCode::GetLocal);
-                        self.function().add_address(address.unwrap() as usize);
-                    }
-
-                    _ if self.vm.function_exists(self.scope_depth, &name) => {
-                        let (_, address) =
-                            self.vm.resolve_function(&name, self.scope_depth).unwrap();
-                        self.add_constant(Value::Function((address, None)));
-                    }
-
                     _ => {
-                        let captured = match self.locals.as_slice().split_last() {
-                            Some((_, captured_frames)) => captured_frames
-                                .iter()
-                                .enumerate()
-                                .rev()
-                                .map(|(index, frame)| (index, frame.iter().enumerate()))
-                                .find_map(|(frame_index, mut frame)| {
-                                    frame.find_map(|(index, item)| match item.0 == name {
-                                        true => Some((frame_index, index)),
-                                        false => None,
-                                    })
-                                }),
-
-                            None => None,
-                        };
-
-                        match captured {
-                            Some((frame, address)) => {
-                                self.function().add_op(OpCode::GetCaptured);
-                                self.add_constant(Value::String(name.clone()));
-                                self.function().add_capture(name, frame, address);
-                            }
-
-                            None => {
-                                self.function().add_op(OpCode::GetGlobal);
-                                self.add_constant(Value::String(name));
-                            }
-                        }
+                        self.compile_identifier(name, can_assign);
                     }
                 }
             }
 
-            Some(token) => self.errors.push(LoxError::new(
+            _ => self.compile_primary(can_assign),
+        }
+    }
+
+    fn compile_identifier(&mut self, name: String, can_assign: bool) {
+        let address = self.resolve_local(name.clone());
+
+        match self.scanner.peek().cloned() {
+            Some(token) if token.kind() == Kind::Equal && can_assign => {
+                self.scanner.next();
+                self.compile_expression();
+                match address {
+                    Some(address) => {
+                        self.function().add_op(OpCode::SetLocal);
+                        self.function().add_address(address as usize);
+                    }
+
+                    None => match self.globals.iter().find(|variable| **variable == name) {
+                        Some(_) => {
+                            self.function().add_op(OpCode::SetGlobal);
+                            self.add_constant(Value::String(name));
+                        }
+                        None => {
+                            self.error(
+                                "Cannot assign to captured variable",
+                                ErrorContext::Compile,
+                                None,
+                            );
+                        }
+                    },
+                }
+            }
+
+            Some(token) if token.kind() == Kind::Equal => {
+                self.scanner.next();
+                self.error("Invalid assignment target", ErrorContext::Compile, None);
+            }
+
+            _ if address.is_some() => {
+                self.function().add_op(OpCode::GetLocal);
+                self.function().add_address(address.unwrap() as usize);
+            }
+
+            _ if self.vm.function_exists(self.scope_depth, &name) => {
+                let (_, address) = self.vm.resolve_function(&name, self.scope_depth).unwrap();
+                self.add_constant(Value::Function((address, None)));
+            }
+
+            _ => {
+                let captured = match self.locals.as_slice().split_last() {
+                    Some((_, captured_frames)) => captured_frames
+                        .iter()
+                        .enumerate()
+                        .rev()
+                        .map(|(index, frame)| (index, frame.iter().enumerate()))
+                        .find_map(|(frame_index, mut frame)| {
+                            frame.find_map(|(index, item)| match item.0 == name {
+                                true => Some((frame_index, index)),
+                                false => None,
+                            })
+                        }),
+
+                    None => None,
+                };
+
+                match captured {
+                    Some((frame, address)) => {
+                        self.function().add_op(OpCode::GetCaptured);
+                        self.add_constant(Value::String(name.clone()));
+                        self.function().add_capture(name, frame, address);
+                    }
+
+                    None => {
+                        self.function().add_op(OpCode::GetGlobal);
+                        self.add_constant(Value::String(name));
+                    }
+                }
+            }
+        }
+    }
+
+    fn compile_primary(&mut self, _can_assign: bool) {
+        match self.scanner.next() {
+            Some(token) if token.kind() == Kind::Nil => self.function().add_op(OpCode::Nil),
+            Some(token) if [Kind::Number, Kind::String].contains(&token.kind()) => {
+                self.add_constant(token.value().unwrap())
+            }
+            Some(token) if token.kind() == Kind::True => self.add_constant(Value::Boolean(true)),
+            Some(token) if token.kind() == Kind::False => self.add_constant(Value::Boolean(false)),
+
+            Some(token) if token.kind() == Kind::LeftParen => {
+                self.compile_expression();
+                match self.scanner.peek() {
+                    Some(token) if token.kind() == Kind::RightParen => {
+                        self.scanner.next();
+                    }
+
+                    Some(_) => self.error(
+                        format!("unexpected {:?} #2", token).as_str(),
+                        ErrorContext::Compile,
+                        None,
+                    ),
+
+                    None => self.error("Unexpected end of script", ErrorContext::Compile, None),
+                }
+            }
+
+            Some(token) if token.kind() == Kind::This => {
+                self.error(
+                    "Feature 'this' is not yet implemented",
+                    ErrorContext::Compile,
+                    None,
+                );
+            }
+
+            Some(token) if token.kind() == Kind::Super => {
+                self.error(
+                    "Feature 'super' is not yet implemented",
+                    ErrorContext::Compile,
+                    None,
+                );
+            }
+
+            Some(token) if token.kind() == Kind::Expands => {
+                self.error(
+                    "Feature 'expands' is not yet implemented",
+                    ErrorContext::Compile,
+                    None,
+                );
+            }
+
+            Some(token) => self.error(
                 format!("unexpected {:?} #3", token).as_str(),
                 ErrorContext::Compile,
                 None,
-            )),
+            ),
 
-            None => self.errors.push(LoxError::new(
-                "Unexpected end of script",
-                ErrorContext::Compile,
-                None,
-            )),
+            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
         }
     }
 
     fn expect(&mut self, kind: Kind) {
-        match self.scanner.peek() {
+        match self.scanner.peek().cloned() {
             Some(token) if token.kind() == kind => {
                 self.scanner.next();
             }
 
-            Some(token) => self.errors.push(LoxError::new(
+            Some(token) => self.error(
                 format!("expected {:?}, got {:?}", kind, token).as_str(),
                 ErrorContext::Compile,
                 None,
-            )),
+            ),
 
-            None => self.errors.push(LoxError::new(
-                "Unexpected end of script",
-                ErrorContext::Compile,
-                None,
-            )),
+            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
         }
     }
 
@@ -736,8 +795,37 @@ impl<'a> Compiler<'a> {
         self.functions.push(function);
     }
 
-    fn new_loop(&mut self, name: String) {
-        let function = Function::new_loop(name);
-        self.functions.push(function);
+    fn error(&mut self, msg: &str, context: ErrorContext, line: Option<usize>) {
+        if !self.panicking {
+            self.errors.push(LoxError::new(msg, context, line));
+            self.panicking = true;
+        }
+    }
+
+    fn synchronize(&mut self) {
+        self.panicking = false;
+        loop {
+            match self.scanner.peek() {
+                Some(token) => match token.kind() {
+                    Kind::Semicolon => {
+                        self.scanner.next();
+                        return;
+                    }
+                    Kind::RightBrace
+                    | Kind::Let
+                    | Kind::Fun
+                    | Kind::While
+                    | Kind::If
+                    | Kind::Return
+                    | Kind::Eof => {
+                        return;
+                    }
+                    _ => {
+                        self.scanner.next();
+                    }
+                },
+                None => return,
+            }
+        }
     }
 }
