@@ -102,8 +102,11 @@ impl VM {
             OpCode::Negate => self.exec_negate(),
             OpCode::Not => self.exec_not(),
             OpCode::Concat => self.exec_concat(),
-            OpCode::Add | OpCode::Subtract | OpCode::Multiply => self.exec_arithmetic(op_code),
-            OpCode::Divide | OpCode::Rem => self.exec_checked_arithmetic(op_code),
+            OpCode::Add
+            | OpCode::Subtract
+            | OpCode::Multiply
+            | OpCode::Divide
+            | OpCode::Rem => self.exec_arithmetic(op_code),
             OpCode::Equal
             | OpCode::NotEqual
             | OpCode::Greater
@@ -210,29 +213,16 @@ impl VM {
         let Some(Value::Number(right)) = self.stack_pop() else {
             return Some(InterpretResult::RuntimeError);
         };
-        let Some(Value::Number(left)) = self.stack_pop() else {
-            return Some(InterpretResult::RuntimeError);
-        };
-        let result = match op_code {
-            OpCode::Add => left + right,
-            OpCode::Subtract => left - right,
-            _ => left * right,
-        };
-        self.stack_push(Value::Number(result));
-        None
-    }
-
-    fn exec_checked_arithmetic(&mut self, op_code: OpCode) -> Option<InterpretResult> {
-        let Some(Value::Number(right)) = self.stack_pop() else {
-            return Some(InterpretResult::RuntimeError);
-        };
-        if right == 0.0 {
+        if matches!(op_code, OpCode::Divide | OpCode::Rem) && right == 0.0 {
             return Some(InterpretResult::RuntimeError);
         }
         let Some(Value::Number(left)) = self.stack_pop() else {
             return Some(InterpretResult::RuntimeError);
         };
         let result = match op_code {
+            OpCode::Add => left + right,
+            OpCode::Subtract => left - right,
+            OpCode::Multiply => left * right,
             OpCode::Divide => left / right,
             _ => left % right,
         };
