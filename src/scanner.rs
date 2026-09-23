@@ -115,9 +115,22 @@ impl Scanner<'_> {
         }
     }
 
-    fn scan_string(&mut self) -> Option<Token> {
+    fn begin_multi_char_token(&mut self, first: Option<char>) {
         self.token_start = Some(self.cursor);
         self.cursor = (self.cursor.0, self.cursor.1 + 1);
+        if let Some(c) = first {
+            self.storage.push(c);
+        }
+    }
+
+    fn finish_token(&mut self, token: Token) -> Option<Token> {
+        self.storage = String::new();
+        self.token_start = None;
+        Some(token)
+    }
+
+    fn scan_string(&mut self) -> Option<Token> {
+        self.begin_multi_char_token(None);
         loop {
             let peeked = self.source.peek();
 
@@ -146,15 +159,11 @@ impl Scanner<'_> {
             self.token_start.unwrap(),
             Some(Value::String(self.storage.clone())),
         );
-        self.storage = String::new();
-        self.token_start = None;
-        Some(token)
+        self.finish_token(token)
     }
 
     fn scan_number(&mut self, first: char) -> Option<Token> {
-        self.token_start = Some(self.cursor);
-        self.cursor = (self.cursor.0, self.cursor.1 + 1);
-        self.storage.push(first);
+        self.begin_multi_char_token(Some(first));
         loop {
             let peeked = self.source.peek();
 
@@ -175,9 +184,7 @@ impl Scanner<'_> {
             self.token_start.unwrap(),
             Some(Value::Number(self.storage.parse().unwrap())),
         );
-        self.storage = String::new();
-        self.token_start = None;
-        Some(token)
+        self.finish_token(token)
     }
 
     fn is_ident_continuation(c: char) -> bool {
@@ -185,9 +192,7 @@ impl Scanner<'_> {
     }
 
     fn scan_identifier(&mut self, first: char) -> Option<Token> {
-        self.token_start = Some(self.cursor);
-        self.cursor = (self.cursor.0, self.cursor.1 + 1);
-        self.storage.push(first);
+        self.begin_multi_char_token(Some(first));
         loop {
             let peeked = self.source.peek();
 
@@ -221,9 +226,7 @@ impl Scanner<'_> {
             )
         };
 
-        self.storage = String::new();
-        self.token_start = None;
-        Some(token)
+        self.finish_token(token)
     }
 }
 
