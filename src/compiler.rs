@@ -288,6 +288,16 @@ impl<'a> Compiler<'a> {
                 self.expect(Kind::RightBrace);
 
                 let current_scope = self.scope_depth;
+                if manage_scope {
+                    let pop_count = self
+                        .locals()
+                        .iter()
+                        .filter(|(_, scope)| *scope == current_scope)
+                        .count();
+                    for _ in 0..pop_count {
+                        self.function().add_op(OpCode::Pop);
+                    }
+                }
                 self.locals().retain(|(_, scope)| *scope != current_scope);
 
                 if manage_scope {
