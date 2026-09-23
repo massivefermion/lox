@@ -104,12 +104,20 @@ impl VM {
             OpCode::Concat => self.exec_concat(),
             OpCode::Add | OpCode::Subtract | OpCode::Multiply => self.exec_arithmetic(op_code),
             OpCode::Divide | OpCode::Rem => self.exec_checked_arithmetic(op_code),
-            OpCode::Equal | OpCode::NotEqual | OpCode::Greater
-            | OpCode::GreaterEqual | OpCode::Less | OpCode::LessEqual => {
-                self.exec_comparison(op_code)
+            OpCode::Equal
+            | OpCode::NotEqual
+            | OpCode::Greater
+            | OpCode::GreaterEqual
+            | OpCode::Less
+            | OpCode::LessEqual => self.exec_comparison(op_code),
+            OpCode::Pop => {
+                self.stack_pop();
+                None
             }
-            OpCode::Pop => { self.stack_pop(); None }
-            OpCode::Nil => { self.stack_push(Value::Nil); None }
+            OpCode::Nil => {
+                self.stack_push(Value::Nil);
+                None
+            }
             OpCode::MakeClosure => self.exec_make_closure(function, ip),
             OpCode::GetCaptured => self.exec_get_captured(function, ip),
             OpCode::DefGlobal | OpCode::SetGlobal | OpCode::GetGlobal => {
@@ -143,11 +151,7 @@ impl VM {
         InterpretResult::Ok
     }
 
-    fn exec_constant(
-        &mut self,
-        function: &Function,
-        ip: &mut usize,
-    ) -> Option<InterpretResult> {
+    fn exec_constant(&mut self, function: &Function, ip: &mut usize) -> Option<InterpretResult> {
         let Some(address) = read_operand(function, ip) else {
             return Some(InterpretResult::RuntimeError);
         };
@@ -463,9 +467,7 @@ impl VM {
         let callee =
             if let Some((func, _)) = self.resolve_function(&function_name.to_string(), scope) {
                 func
-            } else if let Some(Value::Function((_, Some(func)))) =
-                self.globals.get(function_name)
-            {
+            } else if let Some(Value::Function((_, Some(func)))) = self.globals.get(function_name) {
                 func.clone()
             } else {
                 return Some(InterpretResult::RuntimeError);

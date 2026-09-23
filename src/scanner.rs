@@ -69,7 +69,12 @@ impl Scanner<'_> {
         )
     }
 
-    fn scan_two_char_op(&mut self, second: char, matched_kind: Kind, default_kind: Kind) -> Option<Token> {
+    fn scan_two_char_op(
+        &mut self,
+        second: char,
+        matched_kind: Kind,
+        default_kind: Kind,
+    ) -> Option<Token> {
         match self.source.peek() {
             Some(c) if *c == second => {
                 self.source.next();

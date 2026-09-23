@@ -148,12 +148,13 @@ impl<'a> Compiler<'a> {
     fn declare_local_variable(&mut self, variable_name: String) {
         if variable_name != *"_" {
             let current_scope = self.scope_depth;
-            match self.locals().iter().find(|(name, scope)| {
-                *name == variable_name && *scope == current_scope
-            }) {
+            match self
+                .locals()
+                .iter()
+                .find(|(name, scope)| *name == variable_name && *scope == current_scope)
+            {
                 Some(_) => self.error(
-                    format!("Variable {:?} is already defined", variable_name)
-                        .as_str(),
+                    format!("Variable {:?} is already defined", variable_name).as_str(),
                     ErrorContext::Compile,
                     None,
                 ),
@@ -219,11 +220,7 @@ impl<'a> Compiler<'a> {
                             break;
                         }
 
-                        None => self.error(
-                            "Unexpected end of script",
-                            ErrorContext::Compile,
-                            None,
-                        ),
+                        None => self.error("Unexpected end of script", ErrorContext::Compile, None),
 
                         _ => self.error(
                             "unexpected token in parameter list",
@@ -606,11 +603,7 @@ impl<'a> Compiler<'a> {
                             break;
                         }
 
-                        None => self.error(
-                            "Unexpected end of script",
-                            ErrorContext::Compile,
-                            None,
-                        ),
+                        None => self.error("Unexpected end of script", ErrorContext::Compile, None),
 
                         _ => self.error(
                             "unexpected token in argument list",
@@ -621,11 +614,7 @@ impl<'a> Compiler<'a> {
                 }
 
                 None => {
-                    self.error(
-                        "Unexpected end of script",
-                        ErrorContext::Compile,
-                        None,
-                    );
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
                     break;
                 }
             }
