@@ -397,3 +397,240 @@ class TestEdgeCases:
         result = run_lox("println(999999999);")
         assert result.returncode == 0
         assert "999999999" in result.stdout
+
+    def test_multi_function_calls(self):
+        source = """
+fun double(x) {
+    return x * 2;
+}
+fun triple(x) {
+    return x * 3;
+}
+println(double(triple(5)));
+"""
+        result = run_lox(source)
+        assert result.returncode == 0
+        assert "30" in result.stdout
+
+    def test_if_else(self):
+        source = """
+if (true) {
+    println("yes");
+} else {
+    println("no");
+}
+"""
+        result = run_lox(source)
+        assert result.returncode == 0
+        assert "yes" in result.stdout
+
+
+class TestClosures:
+    """Closure capture and scoping behavior."""
+
+    def test_simple_closure(self):
+        source = """
+fun make_adder(x) {
+    fun adder(y) {
+        return x + y;
+    }
+    return adder;
+}
+let add5 = make_adder(5);
+println(add5(3));
+"""
+        result = run_lox(source)
+        assert result.returncode == 0
+        assert "8" in result.stdout
+
+    def test_closure_captures_parameter(self):
+        source = """
+fun greet(name) {
+    fun say_hi() {
+        return "hello " <> name;
+    }
+    return say_hi;
+}
+let g = greet("world");
+println(g());
+"""
+        result = run_lox(source)
+        assert result.returncode == 0
+        assert "hello world" in result.stdout
+
+    def test_closure_in_local_scope(self):
+        source = """
+fun outer() {
+    let x = 10;
+    fun inner() {
+        return x;
+    }
+    return inner;
+}
+let f = outer();
+println(f());
+"""
+        result = run_lox(source)
+        assert result.returncode == 0
+        assert "10" in result.stdout
+
+
+class TestLogicalOperators:
+    """Logical and/or/not operators with short-circuit evaluation."""
+
+    def test_and_true_true(self):
+        result = run_lox("println(true and true);")
+        assert result.returncode == 0
+        assert "true" in result.stdout
+
+    def test_and_true_false(self):
+        result = run_lox("println(true and false);")
+        assert result.returncode == 0
+        assert "false" in result.stdout
+
+    def test_and_false_true(self):
+        result = run_lox("println(false and true);")
+        assert result.returncode == 0
+        assert "false" in result.stdout
+
+    def test_or_false_false(self):
+        result = run_lox("println(false or false);")
+        assert result.returncode == 0
+        assert "false" in result.stdout
+
+    def test_or_true_false(self):
+        result = run_lox("println(true or false);")
+        assert result.returncode == 0
+        assert "true" in result.stdout
+
+    def test_or_false_true(self):
+        result = run_lox("println(false or true);")
+        assert result.returncode == 0
+        assert "true" in result.stdout
+
+    def test_not_true(self):
+        result = run_lox("println(not true);")
+        assert result.returncode == 0
+        assert "false" in result.stdout
+
+    def test_not_false(self):
+        result = run_lox("println(not false);")
+        assert result.returncode == 0
+        assert "true" in result.stdout
+
+    def test_not_nil(self):
+        result = run_lox("println(not nil);")
+        assert result.returncode == 0
+        assert "true" in result.stdout
+
+    def test_not_zero(self):
+        result = run_lox("println(not 0);")
+        assert result.returncode == 0
+        assert "true" in result.stdout
+
+    def test_not_empty_string(self):
+        result = run_lox('println(not "");')
+        assert result.returncode == 0
+        assert "true" in result.stdout
+
+    def test_not_number(self):
+        result = run_lox("println(not 42);")
+        assert result.returncode == 0
+        assert "false" in result.stdout
+
+    def test_not_string(self):
+        result = run_lox('println(not "hello");')
+        assert result.returncode == 0
+        assert "false" in result.stdout
+
+    def test_double_not(self):
+        result = run_lox("println(not not true);")
+        assert result.returncode == 0
+        assert "true" in result.stdout
+
+
+class TestComparisons:
+    """Comparison operators: >, >=, <, <=."""
+
+    def test_gt_true(self):
+        result = run_lox("println(5 > 3);")
+        assert result.returncode == 0
+        assert "true" in result.stdout
+
+    def test_gt_false(self):
+        result = run_lox("println(3 > 5);")
+        assert result.returncode == 0
+        assert "false" in result.stdout
+
+    def test_gte_true(self):
+        result = run_lox("println(5 >= 5);")
+        assert result.returncode == 0
+        assert "true" in result.stdout
+
+    def test_gte_false(self):
+        result = run_lox("println(4 >= 5);")
+        assert result.returncode == 0
+        assert "false" in result.stdout
+
+    def test_lt_true(self):
+        result = run_lox("println(3 < 5);")
+        assert result.returncode == 0
+        assert "true" in result.stdout
+
+    def test_lt_false(self):
+        result = run_lox("println(5 < 3);")
+        assert result.returncode == 0
+        assert "false" in result.stdout
+
+    def test_lte_true(self):
+        result = run_lox("println(5 <= 5);")
+        assert result.returncode == 0
+        assert "true" in result.stdout
+
+    def test_lte_false(self):
+        result = run_lox("println(6 <= 5);")
+        assert result.returncode == 0
+        assert "false" in result.stdout
+
+
+class TestFunctionReturnValues:
+    """Function return behavior including early returns and recursion."""
+
+    def test_return_value(self):
+        source = """
+fun square(x) {
+    return x * x;
+}
+println(square(7));
+"""
+        result = run_lox(source)
+        assert result.returncode == 0
+        assert "49" in result.stdout
+
+    def test_early_return(self):
+        source = """
+fun check(x) {
+    if (x > 0) {
+        return "positive";
+    }
+    return "non-positive";
+}
+println(check(5));
+"""
+        result = run_lox(source)
+        assert result.returncode == 0
+        assert "positive" in result.stdout
+
+    def test_recursive_factorial(self):
+        source = """
+fun factorial(n) {
+    if (n <= 1) {
+        return 1;
+    }
+    return n * factorial(n - 1);
+}
+println(factorial(5));
+"""
+        result = run_lox(source)
+        assert result.returncode == 0
+        assert "120" in result.stdout
