@@ -140,6 +140,7 @@ impl Nif for Print {
             })
             .for_each(|item| print!("{}", item));
 
+        vm.stack_push(Value::Nil);
         Ok(())
     }
 
@@ -159,6 +160,7 @@ impl Nif for Print {
             })
             .for_each(|item| vm.get_stdout().push(item));
 
+        vm.stack_push(Value::Nil);
         Ok(())
     }
 }
