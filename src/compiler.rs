@@ -576,7 +576,7 @@ impl<'a> Compiler<'a> {
                 }
             }
 
-            _ => self.compile_primary(can_assign),
+            _ => self.compile_primary(),
         }
     }
 
@@ -707,7 +707,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_primary(&mut self, _can_assign: bool) {
+    fn compile_primary(&mut self) {
         match self.scanner.next() {
             Some(token) if token.kind() == Kind::Nil => self.function().add_op(OpCode::Nil),
             Some(token) if [Kind::Number, Kind::String].contains(&token.kind()) => {
