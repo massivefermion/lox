@@ -5,7 +5,7 @@ use crate::function::Function;
 use crate::nif::resolve_nif;
 use crate::op::OpCode;
 use crate::scanner::Scanner;
-use crate::token::{Kind, Token};
+use crate::token::Kind;
 use crate::value::Value;
 use crate::vm::VM;
 
@@ -605,7 +605,7 @@ impl<'a> Compiler<'a> {
                     }
 
                     _ => {
-                        self.compile_identifier(name, token, can_assign);
+                        self.compile_identifier(name, can_assign);
                     }
                 }
             }
@@ -614,7 +614,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_identifier(&mut self, name: String, _token: Token, can_assign: bool) {
+    fn compile_identifier(&mut self, name: String, can_assign: bool) {
         let address = self.resolve_local(name.clone());
 
         match self.scanner.peek().cloned() {
