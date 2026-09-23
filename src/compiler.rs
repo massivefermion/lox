@@ -9,6 +9,11 @@ use crate::token::Kind;
 use crate::value::Value;
 use crate::vm::VM;
 
+enum ListSep {
+    Continue,
+    Break,
+}
+
 pub(crate) struct Compiler<'a> {
     vm: &'a mut VM,
     scope_depth: u128,
@@ -200,6 +205,27 @@ impl<'a> Compiler<'a> {
         }
     }
 
+    fn consume_list_separator(&mut self, err_msg: &str) -> ListSep {
+        match self.scanner.peek() {
+            Some(token) if token.kind() == Kind::Comma => {
+                self.scanner.next();
+                ListSep::Continue
+            }
+            Some(token) if token.kind() == Kind::RightParen => {
+                self.scanner.next();
+                ListSep::Break
+            }
+            None => {
+                self.error("Unexpected end of script", ErrorContext::Compile, None);
+                ListSep::Continue
+            }
+            _ => {
+                self.error(err_msg, ErrorContext::Compile, None);
+                ListSep::Continue
+            }
+        }
+    }
+
     fn compile_parameters(&mut self, outer_err: &str) -> u128 {
         let mut arity = 0;
         loop {
@@ -211,20 +237,8 @@ impl<'a> Compiler<'a> {
                     let current_scope = self.scope_depth;
                     self.locals().push((variable_name, current_scope));
 
-                    match self.scanner.peek() {
-                        Some(token) if token.kind() == Kind::Comma => {
-                            self.scanner.next();
-                            continue;
-                        }
-
-                        Some(token) if token.kind() == Kind::RightParen => {
-                            self.scanner.next();
-                            break;
-                        }
-
-                        None => self.error("Unexpected end of script", ErrorContext::Compile, None),
-
-                        _ => self.error(&inner_err, ErrorContext::Compile, None),
+                    if let ListSep::Break = self.consume_list_separator(&inner_err) {
+                        break;
                     }
                 }
 
@@ -587,20 +601,8 @@ impl<'a> Compiler<'a> {
                 Some(_) => {
                     self.compile_expression();
                     args += 1;
-                    match self.scanner.peek() {
-                        Some(token) if token.kind() == Kind::Comma => {
-                            self.scanner.next();
-                            continue;
-                        }
-
-                        Some(token) if token.kind() == Kind::RightParen => {
-                            self.scanner.next();
-                            break;
-                        }
-
-                        None => self.error("Unexpected end of script", ErrorContext::Compile, None),
-
-                        _ => self.error(caller_err, ErrorContext::Compile, None),
+                    if let ListSep::Break = self.consume_list_separator(caller_err) {
+                        break;
                     }
                 }
 
