@@ -180,6 +180,10 @@ impl Scanner<'_> {
         Some(token)
     }
 
+    fn is_ident_continuation(c: char) -> bool {
+        c.is_ascii_alphanumeric() || c as u32 == 0x5f
+    }
+
     fn scan_identifier(&mut self, first: char) -> Option<Token> {
         self.token_start = Some(self.cursor);
         self.cursor = (self.cursor.0, self.cursor.1 + 1);
@@ -187,11 +191,7 @@ impl Scanner<'_> {
         loop {
             let peeked = self.source.peek();
 
-            if peeked.is_none() || {
-                !(*peeked.unwrap()).is_numeric()
-                    && !(*peeked.unwrap()).is_alphabetic()
-                    && *peeked.unwrap() != '_'
-            } {
+            if peeked.is_none() || !Self::is_ident_continuation(*peeked.unwrap()) {
                 break;
             }
 
