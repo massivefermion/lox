@@ -1,7 +1,5 @@
 use std::iter::Peekable;
 
-use rand::{distributions::Alphanumeric, Rng};
-
 use crate::error::{ErrorContext, InterpretResult, LoxError};
 use crate::function::Function;
 use crate::nif::resolve_nif;
@@ -69,23 +67,6 @@ impl<'a> Compiler<'a> {
                     self.scanner.next();
                     self.compile_expression();
                     self.expect(Kind::Semicolon);
-
-                    if self.function().is_loop() {
-                        loop {
-                            self.scope_depth -= 1;
-                            self.function().add_op(OpCode::Return);
-                            let function = self.functions.pop().unwrap();
-                            self.locals.pop();
-                            self.vm.add_loop(function.clone());
-
-                            self.function().add_op(OpCode::Loop);
-                            self.add_constant(Value::String(function.name()));
-
-                            if !self.function().is_loop() {
-                                break;
-                            }
-                        }
-                    }
 
                     self.function().add_op(OpCode::Return);
                     self.function().already_returns();
@@ -346,38 +327,14 @@ impl<'a> Compiler<'a> {
     }
 
     fn compile_while(&mut self) {
-        let name: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(16)
-            .map(char::from)
-            .collect();
-
-        self.scope_depth += 1;
-        self.locals.push(vec![]);
-        self.new_loop(name.clone());
-
+        let loop_start = self.function().code_size();
         self.compile_expression();
-
-        let jump_address = self.function().add_jump(true);
+        let exit_jump = self.function().add_jump(true);
         self.function().add_op(OpCode::Pop);
-
-        self.compile_statement(false);
-
-        if self.function().is_loop() {
-            self.function().add_op(OpCode::Loop);
-            self.add_constant(Value::String(name.clone()));
-
-            self.function().patch_jump(jump_address);
-            self.function().add_op(OpCode::Pop);
-
-            self.scope_depth -= 1;
-            let function = self.functions.pop().unwrap();
-            self.locals.pop();
-            self.vm.add_loop(function);
-
-            self.function().add_op(OpCode::Loop);
-            self.add_constant(Value::String(name));
-        }
+        self.compile_statement(true);
+        self.function().add_jump_back(loop_start);
+        self.function().patch_jump(exit_jump);
+        self.function().add_op(OpCode::Pop);
     }
 
     fn compile_expression(&mut self) {
@@ -822,11 +779,6 @@ impl<'a> Compiler<'a> {
 
     fn new_function(&mut self, name: String, arity: u128) {
         let function = Function::new(name, arity);
-        self.functions.push(function);
-    }
-
-    fn new_loop(&mut self, name: String) {
-        let function = Function::new_loop(name);
         self.functions.push(function);
     }
 }

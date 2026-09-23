@@ -29,6 +29,7 @@ pub(crate) enum OpCode {
     MakeClosure,
     GreaterEqual,
     Subtract,
+    JumpBack,
 
     Invalid,
 }
@@ -36,7 +37,7 @@ pub(crate) enum OpCode {
 impl OpCode {
     pub(crate) fn params(&self) -> u8 {
         match self {
-            Self::Constant | Self::GetLocal | Self::SetLocal => 1,
+            Self::Constant | Self::GetLocal | Self::SetLocal | Self::JumpBack => 1,
             Self::Loop
             | Self::DefGlobal
             | Self::GetGlobal
@@ -81,6 +82,7 @@ impl From<u8> for OpCode {
             26 => Self::MakeClosure,
             27 => Self::GreaterEqual,
             28 => Self::Subtract,
+            29 => Self::JumpBack,
             _ => Self::Invalid,
         }
     }
@@ -118,6 +120,7 @@ impl From<OpCode> for u8 {
             OpCode::MakeClosure => 26,
             OpCode::GreaterEqual => 27,
             OpCode::Subtract => 28,
+            OpCode::JumpBack => 29,
             OpCode::Invalid => 255,
         }
     }

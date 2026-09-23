@@ -221,28 +221,28 @@ mod test {
         assert_eq!(vm.stdout, vec!["2", "5", "1", "4", "0", "3",]);
     }
 
-    // #[test]
-    // fn local_while() {
-    //     let mut vm = VM::new();
-    //     assert_eq!(
-    //         vm.interpret(
-    //             r#"
-    //                 {
-    //                     let a = 2;
-    //                     let b = 5;
-    //                     while a * b != -2 {
-    //                         print(a, b);
-    //                         a = a - 1;
-    //                         b = b - 1;
-    //                     }
-    //                 }
-    //             "#
-    //             .to_string()
-    //         ),
-    //         InterpretResult::Ok
-    //     );
-    //     assert_eq!(vm.stdout, vec!["2", "5", "1", "4", "0", "3",]);
-    // }
+    #[test]
+    fn local_while() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    {
+                        let a = 2;
+                        let b = 5;
+                        while a * b != -2 {
+                            print(a, b);
+                            a = a - 1;
+                            b = b - 1;
+                        }
+                    }
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["2", "5", "1", "4", "0", "3",]);
+    }
 
     #[test]
     fn parse_test() {
@@ -309,28 +309,28 @@ mod test {
         assert_eq!(vm.stdout, vec!["U-235", "\n"]);
     }
 
-    // #[test]
-    // fn return_in_while() {
-    //     let mut vm = VM::new();
-    //     assert_eq!(
-    //         vm.interpret(
-    //             r#"
-    //                 fun make_closure() {
-    //                     while true {
-    //                         let i = "i";
-    //                         fun show() print(i);
-    //                         return show;
-    //                     }
-    //                 }
-    //                 let closure = make_closure();
-    //                 closure();
-    //             "#
-    //             .to_string()
-    //         ),
-    //         InterpretResult::Ok
-    //     );
-    //     assert_eq!(vm.stdout, vec!["i"]);
-    // }
+    #[test]
+    fn return_in_while() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun make_closure() {
+                        while true {
+                            let i = "i";
+                            fun show() print(i);
+                            return show;
+                        }
+                    }
+                    let closure = make_closure();
+                    closure();
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["i"]);
+    }
 
     #[test]
     fn div_by_zero_nif() {
@@ -389,26 +389,26 @@ mod test {
         assert_eq!(vm.stdout, vec!["14"]);
     }
 
-    // #[test]
-    // fn closure_in_while() {
-    //     let mut vm = VM::new();
-    //     assert_eq!(
-    //         vm.interpret(
-    //             r#"
-    //                 fun make_closures() {
-    //                     let i = 5;
-    //                     while i {
-    //                         fun closure() { print(i); }
-    //                         i = i - 1;
-    //                         closure();
-    //                     }
-    //                 }
-    //                 make_closures();
-    //             "#
-    //             .to_string()
-    //         ),
-    //         InterpretResult::Ok
-    //     );
-    //     assert_eq!(vm.stdout, vec!["5", "4", "3", "2", "1"]);
-    // }
+    #[test]
+    fn closure_in_while() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    fun make_closures() {
+                        let i = 5;
+                        while i {
+                            fun closure() { print(i); }
+                            i = i - 1;
+                            closure();
+                        }
+                    }
+                    make_closures();
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["5", "4", "3", "2", "1"]);
+    }
 }

@@ -9,7 +9,6 @@ use crate::value::Value;
 pub(crate) struct Function {
     arity: u128,
     name: String,
-    is_loop: bool,
     codes: Chunk<usize>,
     has_return: Option<bool>,
     captures: HashMap<String, (usize, usize, Option<Value>)>,
@@ -20,7 +19,6 @@ impl Function {
         Function {
             name,
             arity,
-            is_loop: false,
             codes: Chunk::new(),
             has_return: Some(false),
             captures: HashMap::new(),
@@ -31,20 +29,8 @@ impl Function {
         Function {
             name,
             arity: 0,
-            is_loop: false,
             has_return: None,
             codes: Chunk::new(),
-            captures: HashMap::new(),
-        }
-    }
-
-    pub(crate) fn new_loop(name: String) -> Function {
-        Function {
-            name,
-            arity: 0,
-            is_loop: true,
-            codes: Chunk::new(),
-            has_return: Some(false),
             captures: HashMap::new(),
         }
     }
@@ -55,6 +41,14 @@ impl Function {
 
     pub(crate) fn arity(&self) -> u128 {
         self.arity
+    }
+
+    pub(crate) fn code_size(&self) -> usize {
+        self.codes.size()
+    }
+
+    pub(crate) fn get_code(&self, index: usize) -> Option<usize> {
+        self.codes.get(index).copied()
     }
 
     pub(crate) fn add_op(&mut self, op: OpCode) {
@@ -73,6 +67,11 @@ impl Function {
         self.codes.set(address, self.codes.size() - address - 1);
     }
 
+    pub(crate) fn add_jump_back(&mut self, target: usize) {
+        self.codes.add(OpCode::JumpBack as usize);
+        self.codes.add(target);
+    }
+
     pub(crate) fn add_address(&mut self, address: usize) {
         self.codes.add(address);
     }
@@ -83,10 +82,6 @@ impl Function {
 
     pub(crate) fn already_returns(&mut self) {
         self.has_return = Some(true);
-    }
-
-    pub(crate) fn is_loop(&self) -> bool {
-        self.is_loop
     }
 
     pub(crate) fn captures(&self) -> HashMap<String, (usize, usize, Option<Value>)> {
