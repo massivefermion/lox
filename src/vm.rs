@@ -259,19 +259,31 @@ impl VM {
         None
     }
 
+    fn read_number_constant(&self, function: &Function, ip: &mut usize) -> Option<f64> {
+        let address = read_constant_operand(function, ip)?;
+        let Some(Value::Number(n)) = self.get_constant(address) else {
+            return None;
+        };
+        Some(*n)
+    }
+
+    fn read_string_constant(&self, function: &Function, ip: &mut usize) -> Option<String> {
+        let address = read_constant_operand(function, ip)?;
+        let Some(Value::String(s)) = self.get_constant(address) else {
+            return None;
+        };
+        Some(s.clone())
+    }
+
     fn exec_make_closure(
         &mut self,
         function: &Function,
         ip: &mut usize,
     ) -> Option<InterpretResult> {
-        let Some(address) = read_constant_operand(function, ip) else {
-            return Some(InterpretResult::RuntimeError);
-        };
-        let Some(Value::Number(address)) = self.get_constant(address) else {
+        let Some(address) = self.read_number_constant(function, ip) else {
             return Some(InterpretResult::RuntimeError);
         };
 
-        let address = *address;
         let Some((ref mut func, _)) = self.functions.get_mut(address as usize) else {
             return Some(InterpretResult::RuntimeError);
         };
@@ -297,14 +309,11 @@ impl VM {
         function: &Function,
         ip: &mut usize,
     ) -> Option<InterpretResult> {
-        let Some(address) = read_constant_operand(function, ip) else {
-            return Some(InterpretResult::RuntimeError);
-        };
-        let Some(Value::String(variable_name)) = self.get_constant(address) else {
+        let Some(variable_name) = self.read_string_constant(function, ip) else {
             return Some(InterpretResult::RuntimeError);
         };
 
-        let Some(value) = function.get_capture(variable_name.clone()) else {
+        let Some(value) = function.get_capture(variable_name) else {
             return Some(InterpretResult::RuntimeError);
         };
         self.stack_push(value.clone());
@@ -317,13 +326,9 @@ impl VM {
         function: &Function,
         ip: &mut usize,
     ) -> Option<InterpretResult> {
-        let Some(address) = read_constant_operand(function, ip) else {
+        let Some(variable_name) = self.read_string_constant(function, ip) else {
             return Some(InterpretResult::RuntimeError);
         };
-        let Some(Value::String(variable_name)) = self.get_constant(address) else {
-            return Some(InterpretResult::RuntimeError);
-        };
-        let variable_name = variable_name.clone();
 
         match op_code {
             OpCode::DefGlobal => {
@@ -417,29 +422,19 @@ impl VM {
     }
 
     fn exec_call(&mut self, function: &Function, ip: &mut usize) -> Option<InterpretResult> {
-        let Some(address) = read_constant_operand(function, ip) else {
+        let Some(scope) = self.read_number_constant(function, ip) else {
             return Some(InterpretResult::RuntimeError);
         };
-        let Some(Value::Number(scope)) = self.get_constant(address) else {
-            return Some(InterpretResult::RuntimeError);
-        };
-        let scope = *scope as u128;
+        let scope = scope as u128;
 
-        let Some(address) = read_constant_operand(function, ip) else {
+        let Some(args) = self.read_number_constant(function, ip) else {
             return Some(InterpretResult::RuntimeError);
         };
-        let Some(Value::Number(args)) = self.get_constant(address) else {
-            return Some(InterpretResult::RuntimeError);
-        };
-        let args = *args as u128;
+        let args = args as u128;
 
-        let Some(address) = read_constant_operand(function, ip) else {
+        let Some(function_name) = self.read_string_constant(function, ip) else {
             return Some(InterpretResult::RuntimeError);
         };
-        let Some(Value::String(function_name)) = self.get_constant(address) else {
-            return Some(InterpretResult::RuntimeError);
-        };
-        let function_name = function_name.clone();
 
         match resolve_nif(&function_name) {
             Some(nif) => self.call_nif(nif, args),
