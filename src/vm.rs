@@ -10,6 +10,19 @@ use crate::nif::resolve_nif;
 use crate::op::OpCode;
 use crate::value::Value;
 
+fn read_operand(function: &Function, ip: &mut usize) -> Option<usize> {
+    let value = function.get_code(*ip)?;
+    *ip += 1;
+    Some(value)
+}
+
+fn read_constant_operand(function: &Function, ip: &mut usize) -> Option<usize> {
+    *ip += 1; // skip Constant opcode
+    let value = function.get_code(*ip)?;
+    *ip += 1;
+    Some(value)
+}
+
 pub(crate) struct VM {
     #[cfg(test)]
     pub stdout: Vec<String>,
@@ -88,10 +101,9 @@ impl VM {
                 }
 
                 OpCode::Constant => {
-                    let Some(address) = function.get_code(ip) else {
+                    let Some(address) = read_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    ip += 1;
                     let Some(constant) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
@@ -278,11 +290,9 @@ impl VM {
                 }
 
                 OpCode::MakeClosure => {
-                    ip += 1; // skip Constant opcode
-                    let Some(address) = function.get_code(ip) else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    ip += 1;
                     let Some(Value::Number(address)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
@@ -308,11 +318,9 @@ impl VM {
                 }
 
                 OpCode::GetCaptured => {
-                    ip += 1; // skip Constant opcode
-                    let Some(address) = function.get_code(ip) else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    ip += 1;
                     let Some(Value::String(variable_name)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
@@ -324,11 +332,9 @@ impl VM {
                 }
 
                 OpCode::DefGlobal => {
-                    ip += 1; // skip Constant opcode
-                    let Some(address) = function.get_code(ip) else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    ip += 1;
                     let Some(Value::String(variable_name)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
@@ -342,11 +348,9 @@ impl VM {
                 }
 
                 OpCode::SetGlobal => {
-                    ip += 1; // skip Constant opcode
-                    let Some(address) = function.get_code(ip) else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    ip += 1;
                     let Some(Value::String(variable_name)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
@@ -362,11 +366,9 @@ impl VM {
                 }
 
                 OpCode::GetGlobal => {
-                    ip += 1; // skip Constant opcode
-                    let Some(address) = function.get_code(ip) else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    ip += 1;
                     let Some(Value::String(variable_name)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
@@ -379,10 +381,9 @@ impl VM {
                 }
 
                 OpCode::GetLocal => {
-                    let Some(address) = function.get_code(ip) else {
+                    let Some(address) = read_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    ip += 1;
                     let Some(value) = self.stack_get(address) else {
                         return InterpretResult::RuntimeError;
                     };
@@ -390,10 +391,9 @@ impl VM {
                 }
 
                 OpCode::SetLocal => {
-                    let Some(address) = function.get_code(ip) else {
+                    let Some(address) = read_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    ip += 1;
                     let Some(value) = self.stack_peek() else {
                         return InterpretResult::RuntimeError;
                     };
@@ -411,10 +411,9 @@ impl VM {
                         None => return InterpretResult::RuntimeError,
                     };
 
-                    let Some(size) = function.get_code(ip) else {
+                    let Some(size) = read_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    ip += 1;
 
                     if is_falsey {
                         ip += size;
@@ -422,10 +421,9 @@ impl VM {
                 }
 
                 OpCode::Jump => {
-                    let Some(size) = function.get_code(ip) else {
+                    let Some(size) = read_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    ip += 1;
 
                     ip += size;
                 }
@@ -438,31 +436,25 @@ impl VM {
                 }
 
                 OpCode::Call => {
-                    ip += 1; // skip Constant opcode
-                    let Some(address) = function.get_code(ip) else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    ip += 1;
                     let Some(Value::Number(scope)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
                     let scope = *scope as u128;
 
-                    ip += 1; // skip Constant opcode
-                    let Some(address) = function.get_code(ip) else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    ip += 1;
                     let Some(Value::Number(args)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
                     let args = *args as u128;
 
-                    ip += 1; // skip Constant opcode
-                    let Some(address) = function.get_code(ip) else {
+                    let Some(address) = read_constant_operand(&function, &mut ip) else {
                         return InterpretResult::RuntimeError;
                     };
-                    ip += 1;
                     let Some(Value::String(function_name)) = self.get_constant(address) else {
                         return InterpretResult::RuntimeError;
                     };
