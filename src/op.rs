@@ -8,7 +8,6 @@ pub(crate) enum OpCode {
     Call,
     Jump,
     Less,
-    Loop,
     Equal,
     Concat,
     Divide,
@@ -38,8 +37,7 @@ impl OpCode {
     pub(crate) fn params(&self) -> u8 {
         match self {
             Self::Constant | Self::GetLocal | Self::SetLocal | Self::JumpBack => 1,
-            Self::Loop
-            | Self::DefGlobal
+            Self::DefGlobal
             | Self::GetGlobal
             | Self::SetGlobal
             | Self::MakeClosure
@@ -61,7 +59,6 @@ impl From<u8> for OpCode {
             5 => Self::Call,
             6 => Self::Jump,
             7 => Self::Less,
-            8 => Self::Loop,
             9 => Self::Equal,
             10 => Self::Concat,
             11 => Self::Divide,
@@ -99,7 +96,6 @@ impl From<OpCode> for u8 {
             OpCode::Call => 5,
             OpCode::Jump => 6,
             OpCode::Less => 7,
-            OpCode::Loop => 8,
             OpCode::Equal => 9,
             OpCode::Concat => 10,
             OpCode::Divide => 11,
