@@ -130,22 +130,7 @@ impl<'a> Compiler<'a> {
                     }
 
                     _ => {
-                        let variable_name: String = variable_name.into();
-
-                        if variable_name != *"_" {
-                            let current_scope = self.scope_depth;
-                            match self.locals().iter().find(|(name, scope)| {
-                                *name == variable_name && *scope == current_scope
-                            }) {
-                                Some(_) => self.error(
-                                    format!("Variable {:?} is already defined", variable_name)
-                                        .as_str(),
-                                    ErrorContext::Compile,
-                                    None,
-                                ),
-                                None => self.locals().push((variable_name, current_scope)),
-                            }
-                        }
+                        self.declare_local_variable(variable_name.into());
                     }
                 }
             }
@@ -157,6 +142,23 @@ impl<'a> Compiler<'a> {
             ),
 
             None => self.error("Unexpected end of script", ErrorContext::Compile, None),
+        }
+    }
+
+    fn declare_local_variable(&mut self, variable_name: String) {
+        if variable_name != *"_" {
+            let current_scope = self.scope_depth;
+            match self.locals().iter().find(|(name, scope)| {
+                *name == variable_name && *scope == current_scope
+            }) {
+                Some(_) => self.error(
+                    format!("Variable {:?} is already defined", variable_name)
+                        .as_str(),
+                    ErrorContext::Compile,
+                    None,
+                ),
+                None => self.locals().push((variable_name, current_scope)),
+            }
         }
     }
 
@@ -179,69 +181,11 @@ impl<'a> Compiler<'a> {
                 self.expect(Kind::LeftParen);
                 self.scope_depth += 1;
                 self.locals.push(vec![]);
-                let mut arity = 0;
-
-                loop {
-                    match self.scanner.next() {
-                        Some(token) if token.kind() == Kind::Identifier => {
-                            arity += 1;
-                            let variable_name: String = token.value().unwrap().into();
-                            let current_scope = self.scope_depth;
-                            self.locals().push((variable_name, current_scope));
-
-                            match self.scanner.peek() {
-                                Some(token) if token.kind() == Kind::Comma => {
-                                    self.scanner.next();
-                                    continue;
-                                }
-
-                                Some(token) if token.kind() == Kind::RightParen => {
-                                    self.scanner.next();
-                                    break;
-                                }
-
-                                None => self.error(
-                                    "Unexpected end of script",
-                                    ErrorContext::Compile,
-                                    None,
-                                ),
-
-                                _ => self.error(
-                                    format!("unexpected {:?} #1", token).as_str(),
-                                    ErrorContext::Compile,
-                                    None,
-                                ),
-                            }
-                        }
-
-                        Some(token) if token.kind() == Kind::RightParen => {
-                            break;
-                        }
-
-                        None => self.error("Unexpected end of script", ErrorContext::Compile, None),
-
-                        _ => self.error(
-                            format!("unexpected {:?} #1", token).as_str(),
-                            ErrorContext::Compile,
-                            None,
-                        ),
-                    }
-                }
+                let arity = self.compile_parameters();
 
                 self.new_function(function_name, arity);
                 self.compile_statement(false);
-                if let Some(false) = self.function().has_return() {
-                    self.function().add_op(OpCode::Nil);
-                    self.function().add_op(OpCode::Return);
-                }
-                self.scope_depth -= 1;
-                let function = self.functions.pop().unwrap();
-                self.locals.pop();
-                let address = self.vm.add_function(self.scope_depth, function);
-                if self.scope_depth > 0 {
-                    self.function().add_op(OpCode::MakeClosure);
-                    self.add_constant(Value::Number(address as f64));
-                }
+                self.finalize_function();
             }
 
             None => self.error("Unexpected end of script", ErrorContext::Compile, None),
@@ -251,6 +195,72 @@ impl<'a> Compiler<'a> {
                 ErrorContext::Compile,
                 None,
             ),
+        }
+    }
+
+    fn compile_parameters(&mut self) -> u128 {
+        let mut arity = 0;
+        loop {
+            match self.scanner.next() {
+                Some(token) if token.kind() == Kind::Identifier => {
+                    arity += 1;
+                    let variable_name: String = token.value().unwrap().into();
+                    let current_scope = self.scope_depth;
+                    self.locals().push((variable_name, current_scope));
+
+                    match self.scanner.peek() {
+                        Some(token) if token.kind() == Kind::Comma => {
+                            self.scanner.next();
+                            continue;
+                        }
+
+                        Some(token) if token.kind() == Kind::RightParen => {
+                            self.scanner.next();
+                            break;
+                        }
+
+                        None => self.error(
+                            "Unexpected end of script",
+                            ErrorContext::Compile,
+                            None,
+                        ),
+
+                        _ => self.error(
+                            "unexpected token in parameter list",
+                            ErrorContext::Compile,
+                            None,
+                        ),
+                    }
+                }
+
+                Some(token) if token.kind() == Kind::RightParen => {
+                    break;
+                }
+
+                None => self.error("Unexpected end of script", ErrorContext::Compile, None),
+
+                Some(token) => self.error(
+                    format!("unexpected {:?} #1", token).as_str(),
+                    ErrorContext::Compile,
+                    None,
+                ),
+            }
+        }
+        arity
+    }
+
+    fn finalize_function(&mut self) {
+        if let Some(false) = self.function().has_return() {
+            self.function().add_op(OpCode::Nil);
+            self.function().add_op(OpCode::Return);
+        }
+        self.scope_depth -= 1;
+        let function = self.functions.pop().unwrap();
+        self.locals.pop();
+        let address = self.vm.add_function(self.scope_depth, function);
+        if self.scope_depth > 0 {
+            self.function().add_op(OpCode::MakeClosure);
+            self.add_constant(Value::Number(address as f64));
         }
     }
 
