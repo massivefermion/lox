@@ -102,11 +102,9 @@ impl VM {
             OpCode::Negate => self.exec_negate(),
             OpCode::Not => self.exec_not(),
             OpCode::Concat => self.exec_concat(),
-            OpCode::Add
-            | OpCode::Subtract
-            | OpCode::Multiply
-            | OpCode::Divide
-            | OpCode::Rem => self.exec_arithmetic(op_code),
+            OpCode::Add | OpCode::Subtract | OpCode::Multiply | OpCode::Divide | OpCode::Rem => {
+                self.exec_arithmetic(op_code)
+            }
             OpCode::Equal
             | OpCode::NotEqual
             | OpCode::Greater
