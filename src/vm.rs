@@ -173,6 +173,9 @@ impl VM {
                     let Some(Value::Number(right)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
+                    if right == 0.0 {
+                        return InterpretResult::RuntimeError;
+                    }
                     let Some(Value::Number(left)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
@@ -183,6 +186,9 @@ impl VM {
                     let Some(Value::Number(right)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };
+                    if right == 0.0 {
+                        return InterpretResult::RuntimeError;
+                    }
                     let Some(Value::Number(left)) = self.stack_pop() else {
                         return InterpretResult::RuntimeError;
                     };

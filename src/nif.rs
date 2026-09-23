@@ -56,6 +56,9 @@ impl Nif for Div {
             (Value::Number(_), Value::Number(_)) => {
                 let left: i128 = left.into();
                 let right: i128 = right.into();
+                if right == 0 {
+                    return Err(InterpretResult::RuntimeError);
+                }
                 vm.stack_push(Value::Number((left / right) as f64));
                 Ok(())
             }

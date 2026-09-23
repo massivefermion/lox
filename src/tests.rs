@@ -332,6 +332,33 @@ mod test {
     //     assert_eq!(vm.stdout, vec!["i"]);
     // }
 
+    #[test]
+    fn div_by_zero_nif() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"print(div(1, 0));"#.to_string()),
+            InterpretResult::RuntimeError
+        );
+    }
+
+    #[test]
+    fn divide_by_zero() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"print(1 / 0);"#.to_string()),
+            InterpretResult::RuntimeError
+        );
+    }
+
+    #[test]
+    fn rem_by_zero() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"print(1 % 0);"#.to_string()),
+            InterpretResult::RuntimeError
+        );
+    }
+
     // #[test]
     // fn closure_in_while() {
     //     let mut vm = VM::new();
