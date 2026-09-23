@@ -166,6 +166,7 @@ impl<'a> Compiler<'a> {
     fn compile_fun(&mut self) {
         match self.scanner.next() {
             Some(token) if token.kind() == Kind::Identifier => {
+                let outer_err = format!("unexpected {:?} #1", token);
                 let function_name: String = token.value().unwrap().into();
 
                 if self.vm.function_exists(self.scope_depth, &function_name)
@@ -182,7 +183,7 @@ impl<'a> Compiler<'a> {
                 self.expect(Kind::LeftParen);
                 self.scope_depth += 1;
                 self.locals.push(vec![]);
-                let arity = self.compile_parameters();
+                let arity = self.compile_parameters(&outer_err);
 
                 self.new_function(function_name, arity);
                 self.compile_statement(false);
@@ -199,12 +200,13 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_parameters(&mut self) -> u128 {
+    fn compile_parameters(&mut self, outer_err: &str) -> u128 {
         let mut arity = 0;
         loop {
             match self.scanner.next() {
                 Some(token) if token.kind() == Kind::Identifier => {
                     arity += 1;
+                    let inner_err = format!("unexpected {:?} #1", token);
                     let variable_name: String = token.value().unwrap().into();
                     let current_scope = self.scope_depth;
                     self.locals().push((variable_name, current_scope));
@@ -222,11 +224,7 @@ impl<'a> Compiler<'a> {
 
                         None => self.error("Unexpected end of script", ErrorContext::Compile, None),
 
-                        _ => self.error(
-                            "unexpected token in parameter list",
-                            ErrorContext::Compile,
-                            None,
-                        ),
+                        _ => self.error(&inner_err, ErrorContext::Compile, None),
                     }
                 }
 
@@ -236,11 +234,7 @@ impl<'a> Compiler<'a> {
 
                 None => self.error("Unexpected end of script", ErrorContext::Compile, None),
 
-                Some(token) => self.error(
-                    format!("unexpected {:?} #1", token).as_str(),
-                    ErrorContext::Compile,
-                    None,
-                ),
+                Some(_) => self.error(outer_err, ErrorContext::Compile, None),
             }
         }
         arity
@@ -562,7 +556,8 @@ impl<'a> Compiler<'a> {
                 match self.scanner.peek() {
                     Some(next) if next.kind() == Kind::LeftParen => {
                         self.scanner.next();
-                        let args = self.compile_arguments();
+                        let call_err = format!("unexpected {:?} #1", token);
+                        let args = self.compile_arguments(&call_err);
 
                         self.function().add_op(OpCode::Call);
                         self.add_constant(Value::Number(self.scope_depth as f64));
@@ -580,7 +575,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_arguments(&mut self) -> i32 {
+    fn compile_arguments(&mut self, caller_err: &str) -> i32 {
         let mut args = 0;
         loop {
             match self.scanner.peek() {
@@ -605,11 +600,7 @@ impl<'a> Compiler<'a> {
 
                         None => self.error("Unexpected end of script", ErrorContext::Compile, None),
 
-                        _ => self.error(
-                            "unexpected token in argument list",
-                            ErrorContext::Compile,
-                            None,
-                        ),
+                        _ => self.error(caller_err, ErrorContext::Compile, None),
                     }
                 }
 
