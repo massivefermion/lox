@@ -424,6 +424,33 @@ mod test {
     }
 
     #[test]
+    fn unimplemented_this() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"this;"#.to_string()),
+            InterpretResult::CompileError
+        );
+    }
+
+    #[test]
+    fn unimplemented_super() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"super;"#.to_string()),
+            InterpretResult::CompileError
+        );
+    }
+
+    #[test]
+    fn unimplemented_expands() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(r#"expands;"#.to_string()),
+            InterpretResult::CompileError
+        );
+    }
+
+    #[test]
     fn closure_in_while() {
         let mut vm = VM::new();
         assert_eq!(
