@@ -288,8 +288,7 @@ impl VM {
                     };
 
                     let address = *address;
-                    let Some((ref mut func, _)) = self.functions.get_mut(address as usize)
-                    else {
+                    let Some((ref mut func, _)) = self.functions.get_mut(address as usize) else {
                         return InterpretResult::RuntimeError;
                     };
 
@@ -484,16 +483,17 @@ impl VM {
                         }
 
                         None => {
-                            let callee =
-                                if let Some((func, _)) = self.resolve_function(&function_name, scope) {
-                                    func
-                                } else if let Some(Value::Function((_, Some(func)))) =
-                                    self.globals.get(&function_name)
-                                {
-                                    func.clone()
-                                } else {
-                                    return InterpretResult::RuntimeError;
-                                };
+                            let callee = if let Some((func, _)) =
+                                self.resolve_function(&function_name, scope)
+                            {
+                                func
+                            } else if let Some(Value::Function((_, Some(func)))) =
+                                self.globals.get(&function_name)
+                            {
+                                func.clone()
+                            } else {
+                                return InterpretResult::RuntimeError;
+                            };
 
                             if callee.arity() != args {
                                 return InterpretResult::RuntimeError;

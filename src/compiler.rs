@@ -76,22 +76,26 @@ impl<'a> Compiler<'a> {
 
                 Kind::For => {
                     self.scanner.next();
-                    self.error("Feature 'for' is not yet implemented", ErrorContext::Compile, None);
+                    self.error(
+                        "Feature 'for' is not yet implemented",
+                        ErrorContext::Compile,
+                        None,
+                    );
                 }
 
                 Kind::Class => {
                     self.scanner.next();
-                    self.error("Feature 'class' is not yet implemented", ErrorContext::Compile, None);
+                    self.error(
+                        "Feature 'class' is not yet implemented",
+                        ErrorContext::Compile,
+                        None,
+                    );
                 }
 
                 _ => self.compile_statement(true),
             },
 
-            None => self.error(
-                "Unexpected end of script",
-                ErrorContext::Compile,
-                None,
-            ),
+            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
         }
 
         if self.panicking {
@@ -114,11 +118,7 @@ impl<'a> Compiler<'a> {
                         _ => self.function().add_op(OpCode::Nil),
                     },
 
-                    None => self.error(
-                        "Unexpected end of script",
-                        ErrorContext::Compile,
-                        None,
-                    ),
+                    None => self.error("Unexpected end of script", ErrorContext::Compile, None),
                 }
                 self.expect(Kind::Semicolon);
 
@@ -156,11 +156,7 @@ impl<'a> Compiler<'a> {
                 None,
             ),
 
-            None => self.error(
-                "Unexpected end of script",
-                ErrorContext::Compile,
-                None,
-            ),
+            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
         }
     }
 
@@ -222,11 +218,7 @@ impl<'a> Compiler<'a> {
                             break;
                         }
 
-                        None => self.error(
-                            "Unexpected end of script",
-                            ErrorContext::Compile,
-                            None,
-                        ),
+                        None => self.error("Unexpected end of script", ErrorContext::Compile, None),
 
                         _ => self.error(
                             format!("unexpected {:?} #1", token).as_str(),
@@ -252,11 +244,7 @@ impl<'a> Compiler<'a> {
                 }
             }
 
-            None => self.error(
-                "Unexpected end of script",
-                ErrorContext::Compile,
-                None,
-            ),
+            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
 
             Some(token) => self.error(
                 format!("unexpected {:?} #1", token).as_str(),
@@ -291,11 +279,7 @@ impl<'a> Compiler<'a> {
                         },
 
                         None => {
-                            self.error(
-                                "Unexpected end of script",
-                                ErrorContext::Compile,
-                                None,
-                            );
+                            self.error("Unexpected end of script", ErrorContext::Compile, None);
                             break;
                         }
                     }
@@ -312,11 +296,7 @@ impl<'a> Compiler<'a> {
             }
 
             None => {
-                self.error(
-                    "Unexpected end of script",
-                    ErrorContext::Compile,
-                    None,
-                );
+                self.error("Unexpected end of script", ErrorContext::Compile, None);
             }
 
             _ => {
@@ -377,11 +357,7 @@ impl<'a> Compiler<'a> {
                 Some(_) => break,
 
                 None => {
-                    self.error(
-                        "Unexpected end of script",
-                        ErrorContext::Compile,
-                        None,
-                    );
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
                     break;
                 }
             };
@@ -403,11 +379,7 @@ impl<'a> Compiler<'a> {
                 Some(_) => break,
 
                 None => {
-                    self.error(
-                        "Unexpected end of script",
-                        ErrorContext::Compile,
-                        None,
-                    );
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
                     break;
                 }
             };
@@ -433,11 +405,7 @@ impl<'a> Compiler<'a> {
                 Some(_) => break,
 
                 None => {
-                    self.error(
-                        "Unexpected end of script",
-                        ErrorContext::Compile,
-                        None,
-                    );
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
                     break;
                 }
             };
@@ -475,11 +443,7 @@ impl<'a> Compiler<'a> {
                 Some(_) => break,
 
                 None => {
-                    self.error(
-                        "Unexpected end of script",
-                        ErrorContext::Compile,
-                        None,
-                    );
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
                     break;
                 }
             };
@@ -511,11 +475,7 @@ impl<'a> Compiler<'a> {
                 Some(_) => break,
 
                 None => {
-                    self.error(
-                        "Unexpected end of script",
-                        ErrorContext::Compile,
-                        None,
-                    );
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
                     break;
                 }
             };
@@ -547,11 +507,7 @@ impl<'a> Compiler<'a> {
                 Some(_) => break,
 
                 None => {
-                    self.error(
-                        "Unexpected end of script",
-                        ErrorContext::Compile,
-                        None,
-                    );
+                    self.error("Unexpected end of script", ErrorContext::Compile, None);
                     break;
                 }
             };
@@ -679,11 +635,7 @@ impl<'a> Compiler<'a> {
 
             Some(token) if token.kind() == Kind::Equal => {
                 self.scanner.next();
-                self.error(
-                    "Invalid assignment target",
-                    ErrorContext::Compile,
-                    None,
-                );
+                self.error("Invalid assignment target", ErrorContext::Compile, None);
             }
 
             _ if address.is_some() => {
@@ -692,8 +644,7 @@ impl<'a> Compiler<'a> {
             }
 
             _ if self.vm.function_exists(self.scope_depth, &name) => {
-                let (_, address) =
-                    self.vm.resolve_function(&name, self.scope_depth).unwrap();
+                let (_, address) = self.vm.resolve_function(&name, self.scope_depth).unwrap();
                 self.add_constant(Value::Function((address, None)));
             }
 
@@ -752,24 +703,32 @@ impl<'a> Compiler<'a> {
                         None,
                     ),
 
-                    None => self.error(
-                        "Unexpected end of script",
-                        ErrorContext::Compile,
-                        None,
-                    ),
+                    None => self.error("Unexpected end of script", ErrorContext::Compile, None),
                 }
             }
 
             Some(token) if token.kind() == Kind::This => {
-                self.error("Feature 'this' is not yet implemented", ErrorContext::Compile, None);
+                self.error(
+                    "Feature 'this' is not yet implemented",
+                    ErrorContext::Compile,
+                    None,
+                );
             }
 
             Some(token) if token.kind() == Kind::Super => {
-                self.error("Feature 'super' is not yet implemented", ErrorContext::Compile, None);
+                self.error(
+                    "Feature 'super' is not yet implemented",
+                    ErrorContext::Compile,
+                    None,
+                );
             }
 
             Some(token) if token.kind() == Kind::Expands => {
-                self.error("Feature 'expands' is not yet implemented", ErrorContext::Compile, None);
+                self.error(
+                    "Feature 'expands' is not yet implemented",
+                    ErrorContext::Compile,
+                    None,
+                );
             }
 
             Some(token) => self.error(
@@ -778,11 +737,7 @@ impl<'a> Compiler<'a> {
                 None,
             ),
 
-            None => self.error(
-                "Unexpected end of script",
-                ErrorContext::Compile,
-                None,
-            ),
+            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
         }
     }
 
@@ -798,11 +753,7 @@ impl<'a> Compiler<'a> {
                 None,
             ),
 
-            None => self.error(
-                "Unexpected end of script",
-                ErrorContext::Compile,
-                None,
-            ),
+            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
         }
     }
 
