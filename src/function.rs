@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 
-use crate::chunk::{Chunk, ChunkIterator};
+use crate::chunk::Chunk;
 use crate::op::OpCode;
 use crate::value::Value;
 
@@ -102,29 +102,6 @@ impl Function {
         self.captures
             .get(&name)
             .and_then(|(_, _, value)| value.clone())
-    }
-}
-
-pub(crate) struct FunctionIterator<'a> {
-    iterator: ChunkIterator<'a, usize>,
-}
-
-impl<'a> IntoIterator for &'a Function {
-    type Item = usize;
-    type IntoIter = FunctionIterator<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        FunctionIterator {
-            iterator: self.codes.into_iter(),
-        }
-    }
-}
-
-impl<'a> Iterator for FunctionIterator<'a> {
-    type Item = usize;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.iterator.next().copied()
     }
 }
 
