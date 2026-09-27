@@ -2,13 +2,13 @@ use std::collections::HashMap;
 use std::env::var_os;
 use std::time::Instant;
 
-use crate::chunk::Chunk;
-use crate::compiler::Compiler;
-use crate::error::InterpretResult;
-use crate::function::Function;
-use crate::nif::{resolve_nif, Nif};
-use crate::op::OpCode;
-use crate::value::Value;
+use crate::runtime::chunk::Chunk;
+use crate::compiler::compiler::Compiler;
+use crate::errors::error::InterpretResult;
+use crate::runtime::function::Function;
+use crate::runtime::nif::{resolve_nif, Nif};
+use crate::compiler::op::OpCode;
+use crate::runtime::value::Value;
 
 fn read_operand(function: &Function, ip: &mut usize) -> Option<usize> {
     let value = function.get_code(*ip)?;

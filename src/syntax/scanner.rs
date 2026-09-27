@@ -1,5 +1,5 @@
-use crate::token::{Kind, Token};
-use crate::value::Value;
+use crate::syntax::token::{Kind, Token};
+use crate::runtime::value::Value;
 use std::iter::Peekable;
 use std::str::Chars;
 

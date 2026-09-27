@@ -1,13 +1,13 @@
 use std::iter::Peekable;
 
-use crate::error::{ErrorContext, InterpretResult, LoxError};
-use crate::function::Function;
-use crate::nif::resolve_nif;
-use crate::op::OpCode;
-use crate::scanner::Scanner;
-use crate::token::Kind;
-use crate::value::Value;
-use crate::vm::VM;
+use crate::errors::error::{ErrorContext, InterpretResult, LoxError};
+use crate::runtime::function::Function;
+use crate::runtime::nif::resolve_nif;
+use crate::compiler::op::OpCode;
+use crate::syntax::scanner::Scanner;
+use crate::syntax::token::Kind;
+use crate::runtime::value::Value;
+use crate::runtime::vm::VM;
 
 enum ListSep {
     Continue,
@@ -719,7 +719,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_grouping(&mut self, open_token: crate::token::Token) {
+    fn compile_grouping(&mut self, open_token: crate::syntax::token::Token) {
         self.compile_expression();
         match self.scanner.peek() {
             Some(token) if token.kind() == Kind::RightParen => {
@@ -736,7 +736,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_primary_token(&mut self, token: crate::token::Token) {
+    fn compile_primary_token(&mut self, token: crate::syntax::token::Token) {
         match token.kind() {
             Kind::This => self.error(
                 "Feature 'this' is not yet implemented",

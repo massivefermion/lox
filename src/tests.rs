@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test {
-    use crate::error::InterpretResult;
-    use crate::vm::VM;
+    use crate::errors::error::InterpretResult;
+    use crate::runtime::vm::VM;
 
     #[test]
     fn hello_world() {

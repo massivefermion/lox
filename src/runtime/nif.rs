@@ -1,8 +1,8 @@
 use std::time::Instant;
 
-use crate::error::InterpretResult;
-use crate::value::Value;
-use crate::vm::VM;
+use crate::errors::error::InterpretResult;
+use crate::runtime::value::Value;
+use crate::runtime::vm::VM;
 
 pub(crate) trait Nif {
     fn name(&self) -> String;
