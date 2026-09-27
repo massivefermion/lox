@@ -2,13 +2,15 @@ use std::collections::HashMap;
 use std::env::var_os;
 use std::time::Instant;
 
-use crate::runtime::chunk::Chunk;
 use crate::compiler::compiler::Compiler;
+use crate::compiler::op::OpCode;
 use crate::errors::error::InterpretResult;
+use crate::runtime::chunk::Chunk;
 use crate::runtime::function::Function;
 use crate::runtime::nif::{resolve_nif, Nif};
-use crate::compiler::op::OpCode;
 use crate::runtime::value::Value;
+use crate::syntax::parser::Parser;
+use crate::syntax::scanner::Scanner;
 
 fn read_operand(function: &Function, ip: &mut usize) -> Option<usize> {
     let value = function.get_code(*ip)?;
@@ -49,9 +51,18 @@ impl VM {
     }
 
     pub(crate) fn interpret(&mut self, source: String) -> InterpretResult {
+        let scanner = Scanner::new(&source);
+        let mut parser = Parser::new(scanner);
+        let program = match parser.parse() {
+            Ok(program) => program,
+            Err(error) => {
+                eprintln!("{}", error);
+                return InterpretResult::CompileError;
+            }
+        };
         let main_function = Function::new_main("##MAIN##".to_string());
-        let mut compiler = Compiler::new(self, main_function, &source);
-        match compiler.compile() {
+        let mut compiler = Compiler::new(self, main_function);
+        match compiler.compile(&program) {
             Ok(main_function) => self.run(main_function),
             _ => InterpretResult::CompileError,
         }

@@ -1,18 +1,10 @@
-use std::iter::Peekable;
-
+use crate::compiler::op::OpCode;
 use crate::errors::error::{ErrorContext, InterpretResult, LoxError};
 use crate::runtime::function::Function;
 use crate::runtime::nif::resolve_nif;
-use crate::compiler::op::OpCode;
-use crate::syntax::scanner::Scanner;
-use crate::syntax::token::Kind;
 use crate::runtime::value::Value;
 use crate::runtime::vm::VM;
-
-enum ListSep {
-    Continue,
-    Break,
-}
+use crate::syntax::ast::*;
 
 pub(crate) struct Compiler<'a> {
     vm: &'a mut VM,
@@ -22,11 +14,10 @@ pub(crate) struct Compiler<'a> {
     panicking: bool,
     functions: Vec<Function>,
     locals: Vec<Vec<(String, u128)>>,
-    scanner: Peekable<Scanner<'a>>,
 }
 
 impl<'a> Compiler<'a> {
-    pub(crate) fn new(vm: &'a mut VM, function: Function, source: &'a str) -> Compiler<'a> {
+    pub(crate) fn new(vm: &'a mut VM, function: Function) -> Compiler<'a> {
         Compiler {
             vm,
             errors: vec![],
@@ -35,21 +26,16 @@ impl<'a> Compiler<'a> {
             locals: vec![vec![]],
             scope_depth: 0,
             functions: vec![function],
-            scanner: Scanner::new(source).peekable(),
         }
     }
 
-    pub(crate) fn compile(&mut self) -> Result<Function, InterpretResult> {
-        loop {
-            self.compile_declaration();
-            match self.scanner.peek().unwrap().kind() {
-                Kind::Eof => break,
-                _ => continue,
-            }
+    pub(crate) fn compile(&mut self, program: &Program) -> Result<Function, InterpretResult> {
+        for stmt in &program.stmts {
+            self.compile_declaration(stmt);
         }
 
         match self.errors.len() {
-            0 => return Ok(self.function().clone()),
+            0 => Ok(self.function().clone()),
             _ => {
                 self.errors.iter().for_each(|e| eprintln!("{}", e));
                 Err(InterpretResult::CompileError)
@@ -57,96 +43,44 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_declaration(&mut self) {
-        match self.scanner.peek() {
-            Some(token) => match token.kind() {
-                Kind::Let => {
-                    self.scanner.next();
-                    self.compile_let();
-                }
-
-                Kind::Fun => {
-                    self.scanner.next();
-                    self.compile_fun();
-                }
-
-                Kind::Return => {
-                    self.scanner.next();
-                    self.compile_expression();
-                    self.expect(Kind::Semicolon);
-
-                    self.function().add_op(OpCode::Return);
-                    self.function().already_returns();
-                }
-
-                Kind::For => {
-                    self.scanner.next();
-                    self.error(
-                        "Feature 'for' is not yet implemented",
-                        ErrorContext::Compile,
-                        None,
-                    );
-                }
-
-                Kind::Class => {
-                    self.scanner.next();
-                    self.error(
-                        "Feature 'class' is not yet implemented",
-                        ErrorContext::Compile,
-                        None,
-                    );
-                }
-
-                _ => self.compile_statement(true),
-            },
-
-            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
+    fn compile_declaration(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::Let { .. } => self.compile_let(stmt),
+            Stmt::Fun { .. } => self.compile_fun(stmt),
+            Stmt::Return { value, .. } => {
+                self.compile_expr(value);
+                self.function().add_op(OpCode::Return);
+                self.function().already_returns();
+            }
+            _ => self.compile_stmt(stmt),
         }
-
         if self.panicking {
-            self.synchronize();
+            self.panicking = false;
         }
     }
 
-    fn compile_let(&mut self) {
-        match self.scanner.next() {
-            Some(token) if token.kind() == Kind::Identifier => {
-                let variable_name = token.value().unwrap();
+    fn compile_let(&mut self, stmt: &Stmt) {
+        let Stmt::Let {
+            name, initializer, ..
+        } = stmt
+        else {
+            return;
+        };
 
-                match self.scanner.peek() {
-                    Some(token) => match token.kind() {
-                        Kind::Equal => {
-                            self.scanner.next();
-                            self.compile_expression();
-                        }
+        match initializer {
+            Some(expr) => self.compile_expr(expr),
+            None => self.function().add_op(OpCode::Nil),
+        }
 
-                        _ => self.function().add_op(OpCode::Nil),
-                    },
-
-                    None => self.error("Unexpected end of script", ErrorContext::Compile, None),
-                }
-                self.expect(Kind::Semicolon);
-
-                match self.scope_depth {
-                    0 => {
-                        self.globals.push(variable_name.clone().into());
-                        self.function().add_op(OpCode::DefGlobal);
-                        self.add_constant(variable_name);
-                    }
-
-                    _ => {
-                        self.declare_local_variable(variable_name.into());
-                    }
-                }
+        match self.scope_depth {
+            0 => {
+                self.globals.push(name.clone());
+                self.function().add_op(OpCode::DefGlobal);
+                self.add_constant(Value::String(name.clone()));
             }
-
-            Some(token) => self.error(
-                format!("unexpected {:?} #1", token).as_str(),
-                ErrorContext::Compile,
-                None,
-            ),
-
-            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
+            _ => {
+                self.declare_local_variable(name.clone());
+            }
         }
     }
 
@@ -159,7 +93,7 @@ impl<'a> Compiler<'a> {
                 .find(|(name, scope)| *name == variable_name && *scope == current_scope)
             {
                 Some(_) => self.error(
-                    format!("Variable {:?} is already defined", variable_name).as_str(),
+                    &format!("Variable {:?} is already defined", variable_name),
                     ErrorContext::Compile,
                     None,
                 ),
@@ -168,90 +102,38 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_fun(&mut self) {
-        match self.scanner.next() {
-            Some(token) if token.kind() == Kind::Identifier => {
-                let outer_err = format!("unexpected {:?} #1", token);
-                let function_name: String = token.value().unwrap().into();
+    fn compile_fun(&mut self, stmt: &Stmt) {
+        let Stmt::Fun {
+            name, params, body, ..
+        } = stmt
+        else {
+            return;
+        };
 
-                if self.vm.function_exists(self.scope_depth, &function_name)
-                    || resolve_nif(&function_name).is_some()
-                {
-                    self.error(
-                        format!("Function {} already exists", function_name).as_str(),
-                        ErrorContext::Compile,
-                        None,
-                    );
-                    return;
-                }
-
-                self.expect(Kind::LeftParen);
-                self.scope_depth += 1;
-                self.locals.push(vec![]);
-                let arity = self.compile_parameters(&outer_err);
-
-                self.new_function(function_name, arity);
-                self.compile_statement(false);
-                self.finalize_function();
-            }
-
-            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
-
-            Some(token) => self.error(
-                format!("unexpected {:?} #1", token).as_str(),
+        if self.vm.function_exists(self.scope_depth, name) || resolve_nif(name).is_some() {
+            self.error(
+                &format!("Function {} already exists", name),
                 ErrorContext::Compile,
                 None,
-            ),
+            );
+            return;
         }
-    }
 
-    fn consume_list_separator(&mut self, err_msg: &str) -> ListSep {
-        match self.scanner.peek() {
-            Some(token) if token.kind() == Kind::Comma => {
-                self.scanner.next();
-                ListSep::Continue
-            }
-            Some(token) if token.kind() == Kind::RightParen => {
-                self.scanner.next();
-                ListSep::Break
-            }
-            None => {
-                self.error("Unexpected end of script", ErrorContext::Compile, None);
-                ListSep::Continue
-            }
-            _ => {
-                self.error(err_msg, ErrorContext::Compile, None);
-                ListSep::Continue
-            }
+        self.scope_depth += 1;
+        self.locals.push(vec![]);
+
+        let current_scope = self.scope_depth;
+        for param in params {
+            self.locals().push((param.clone(), current_scope));
         }
-    }
 
-    fn compile_parameters(&mut self, outer_err: &str) -> u128 {
-        let mut arity = 0;
-        loop {
-            match self.scanner.next() {
-                Some(token) if token.kind() == Kind::Identifier => {
-                    arity += 1;
-                    let inner_err = format!("unexpected {:?} #1", token);
-                    let variable_name: String = token.value().unwrap().into();
-                    let current_scope = self.scope_depth;
-                    self.locals().push((variable_name, current_scope));
+        self.new_function(name.clone(), params.len() as u128);
 
-                    if let ListSep::Break = self.consume_list_separator(&inner_err) {
-                        break;
-                    }
-                }
-
-                Some(token) if token.kind() == Kind::RightParen => {
-                    break;
-                }
-
-                None => self.error("Unexpected end of script", ErrorContext::Compile, None),
-
-                Some(_) => self.error(outer_err, ErrorContext::Compile, None),
-            }
+        for s in body {
+            self.compile_declaration(s);
         }
-        arity
+
+        self.finalize_function();
     }
 
     fn finalize_function(&mut self) {
@@ -269,394 +151,190 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    fn compile_statement(&mut self, manage_scope: bool) {
-        match self.scanner.peek() {
-            Some(token) if token.kind() == Kind::If => {
-                self.scanner.next();
-                self.compile_if();
+    fn compile_stmt(&mut self, stmt: &Stmt) {
+        match stmt {
+            Stmt::Expression { expr, .. } => {
+                self.compile_expr(expr);
             }
+            Stmt::If {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => {
+                self.compile_expr(condition);
+                let jump_address = self.function().add_jump(true);
+                self.function().add_op(OpCode::Pop);
+                self.compile_stmt(then_branch);
+                let else_jump_address = self.function().add_jump(false);
+                self.function().patch_jump(jump_address);
+                self.function().add_op(OpCode::Pop);
 
-            Some(token) if token.kind() == Kind::While => {
-                self.scanner.next();
-                self.compile_while();
-            }
-
-            Some(token) if token.kind() == Kind::LeftBrace => {
-                self.scanner.next();
-                self.compile_block(manage_scope);
-            }
-
-            None => {
-                self.error("Unexpected end of script", ErrorContext::Compile, None);
-            }
-
-            _ => {
-                self.compile_expression();
-                self.expect(Kind::Semicolon);
-            }
-        }
-    }
-
-    fn compile_block(&mut self, manage_scope: bool) {
-        if manage_scope {
-            self.scope_depth += 1;
-        }
-        loop {
-            match self.scanner.peek() {
-                Some(token) => match token.kind() {
-                    Kind::RightBrace | Kind::Eof => break,
-                    _ => (),
-                },
-
-                None => {
-                    self.error("Unexpected end of script", ErrorContext::Compile, None);
-                    break;
+                if let Some(else_stmt) = else_branch {
+                    self.compile_stmt(else_stmt);
                 }
-            }
-            self.compile_declaration();
-        }
-        self.expect(Kind::RightBrace);
 
-        let current_scope = self.scope_depth;
-        if manage_scope {
-            let pop_count = self
-                .locals()
-                .iter()
-                .filter(|(_, scope)| *scope == current_scope)
-                .count();
-            for _ in 0..pop_count {
+                self.function().patch_jump(else_jump_address);
+            }
+            Stmt::While {
+                condition, body, ..
+            } => {
+                let loop_start = self.function().code_size();
+                self.compile_expr(condition);
+                let exit_jump = self.function().add_jump(true);
+                self.function().add_op(OpCode::Pop);
+                self.compile_stmt(body);
+                self.function().add_jump_back(loop_start);
+                self.function().patch_jump(exit_jump);
                 self.function().add_op(OpCode::Pop);
             }
-        }
-        self.locals().retain(|(_, scope)| *scope != current_scope);
-
-        if manage_scope {
-            self.scope_depth -= 1;
-        }
-    }
-
-    fn compile_if(&mut self) {
-        self.compile_expression();
-        let jump_address = self.function().add_jump(true);
-        self.function().add_op(OpCode::Pop);
-        self.compile_statement(true);
-        let else_jump_address = self.function().add_jump(false);
-        self.function().patch_jump(jump_address);
-        self.function().add_op(OpCode::Pop);
-
-        if let Some(token) = self.scanner.peek() {
-            if token.kind() == Kind::Else {
-                self.scanner.next();
-                self.compile_statement(true);
+            Stmt::Block { stmts, .. } => {
+                self.scope_depth += 1;
+                for s in stmts {
+                    self.compile_declaration(s);
+                }
+                let current_scope = self.scope_depth;
+                let pop_count = self
+                    .locals()
+                    .iter()
+                    .filter(|(_, scope)| *scope == current_scope)
+                    .count();
+                for _ in 0..pop_count {
+                    self.function().add_op(OpCode::Pop);
+                }
+                self.locals().retain(|(_, scope)| *scope != current_scope);
+                self.scope_depth -= 1;
             }
+            Stmt::Return { value, .. } => {
+                self.compile_expr(value);
+                self.function().add_op(OpCode::Return);
+                self.function().already_returns();
+            }
+            Stmt::Let { .. } => self.compile_let(stmt),
+            Stmt::Fun { .. } => self.compile_fun(stmt),
         }
-
-        self.function().patch_jump(else_jump_address);
     }
 
-    fn compile_while(&mut self) {
-        let loop_start = self.function().code_size();
-        self.compile_expression();
-        let exit_jump = self.function().add_jump(true);
-        self.function().add_op(OpCode::Pop);
-        self.compile_statement(true);
-        self.function().add_jump_back(loop_start);
-        self.function().patch_jump(exit_jump);
-        self.function().add_op(OpCode::Pop);
-    }
-
-    fn compile_expression(&mut self) {
-        self.compile_or(true);
-    }
-
-    fn compile_or(&mut self, can_assign: bool) {
-        self.compile_and(can_assign);
-        loop {
-            match self.scanner.peek() {
-                Some(token) if token.kind() == Kind::Or => {
-                    self.scanner.next();
+    fn compile_expr(&mut self, expr: &Expr) {
+        match expr {
+            Expr::Literal { value, .. } => match value {
+                Value::Nil => self.function().add_op(OpCode::Nil),
+                Value::Boolean(true) => self.add_constant(Value::Boolean(true)),
+                Value::Boolean(false) => self.add_constant(Value::Boolean(false)),
+                _ => self.add_constant(value.clone()),
+            },
+            Expr::Variable { name, .. } => {
+                self.compile_variable_read(name);
+            }
+            Expr::Assignment { name, value, .. } => {
+                self.compile_expr(value);
+                self.compile_variable_write(name);
+            }
+            Expr::Unary {
+                operator, operand, ..
+            } => {
+                self.compile_expr(operand);
+                match operator {
+                    UnaryOp::Negate => self.function().add_op(OpCode::Negate),
+                    UnaryOp::Not => self.function().add_op(OpCode::Not),
+                }
+            }
+            Expr::Binary {
+                operator,
+                left,
+                right,
+                ..
+            } => {
+                self.compile_expr(left);
+                self.compile_expr(right);
+                match operator {
+                    BinaryOp::Add => self.function().add_op(OpCode::Add),
+                    BinaryOp::Subtract => self.function().add_op(OpCode::Subtract),
+                    BinaryOp::Multiply => self.function().add_op(OpCode::Multiply),
+                    BinaryOp::Divide => self.function().add_op(OpCode::Divide),
+                    BinaryOp::Rem => self.function().add_op(OpCode::Rem),
+                    BinaryOp::Concat => self.function().add_op(OpCode::Concat),
+                    BinaryOp::Equal => self.function().add_op(OpCode::Equal),
+                    BinaryOp::NotEqual => self.function().add_op(OpCode::NotEqual),
+                    BinaryOp::Greater => self.function().add_op(OpCode::Greater),
+                    BinaryOp::GreaterEqual => self.function().add_op(OpCode::GreaterEqual),
+                    BinaryOp::Less => self.function().add_op(OpCode::Less),
+                    BinaryOp::LessEqual => self.function().add_op(OpCode::LessEqual),
+                }
+            }
+            Expr::Logical {
+                operator,
+                left,
+                right,
+                ..
+            } => match operator {
+                LogicalOp::Or => {
+                    self.compile_expr(left);
                     let else_jump_address = self.function().add_jump(true);
                     let end_jump_address = self.function().add_jump(false);
                     self.function().patch_jump(else_jump_address);
                     self.function().add_op(OpCode::Pop);
-                    self.compile_and(false);
+                    self.compile_expr(right);
                     self.function().patch_jump(end_jump_address);
                 }
-
-                Some(_) => break,
-
-                None => {
-                    self.error("Unexpected end of script", ErrorContext::Compile, None);
-                    break;
-                }
-            };
-        }
-    }
-
-    fn compile_and(&mut self, can_assign: bool) {
-        self.compile_equality(can_assign);
-        loop {
-            match self.scanner.peek() {
-                Some(token) if token.kind() == Kind::And => {
-                    self.scanner.next();
+                LogicalOp::And => {
+                    self.compile_expr(left);
                     let jump_address = self.function().add_jump(true);
                     self.function().add_op(OpCode::Pop);
-                    self.compile_equality(false);
+                    self.compile_expr(right);
                     self.function().patch_jump(jump_address);
                 }
-
-                Some(_) => break,
-
-                None => {
-                    self.error("Unexpected end of script", ErrorContext::Compile, None);
-                    break;
-                }
-            };
-        }
-    }
-
-    fn compile_equality(&mut self, can_assign: bool) {
-        self.compile_comparison(can_assign);
-        loop {
-            match self.scanner.peek() {
-                Some(token) if token.kind() == Kind::EqualEqual => {
-                    self.scanner.next();
-                    self.compile_comparison(false);
-                    self.function().add_op(OpCode::Equal);
-                }
-
-                Some(token) if token.kind() == Kind::BangEqual => {
-                    self.scanner.next();
-                    self.compile_comparison(false);
-                    self.function().add_op(OpCode::NotEqual);
-                }
-
-                Some(_) => break,
-
-                None => {
-                    self.error("Unexpected end of script", ErrorContext::Compile, None);
-                    break;
-                }
-            };
-        }
-    }
-
-    fn compile_comparison(&mut self, can_assign: bool) {
-        self.compile_term(can_assign);
-        loop {
-            match self.scanner.peek() {
-                Some(token) if token.kind() == Kind::Greater => {
-                    self.scanner.next();
-                    self.compile_term(false);
-                    self.function().add_op(OpCode::Greater);
-                }
-
-                Some(token) if token.kind() == Kind::GreaterEqual => {
-                    self.scanner.next();
-                    self.compile_term(false);
-                    self.function().add_op(OpCode::GreaterEqual);
-                }
-
-                Some(token) if token.kind() == Kind::Less => {
-                    self.scanner.next();
-                    self.compile_term(false);
-                    self.function().add_op(OpCode::Less);
-                }
-
-                Some(token) if token.kind() == Kind::LessEqual => {
-                    self.scanner.next();
-                    self.compile_term(false);
-                    self.function().add_op(OpCode::LessEqual);
-                }
-
-                Some(_) => break,
-
-                None => {
-                    self.error("Unexpected end of script", ErrorContext::Compile, None);
-                    break;
-                }
-            };
-        }
-    }
-
-    fn compile_term(&mut self, can_assign: bool) {
-        self.compile_factor(can_assign);
-        loop {
-            match self.scanner.peek() {
-                Some(token) if token.kind() == Kind::Plus => {
-                    self.scanner.next();
-                    self.compile_factor(false);
-                    self.function().add_op(OpCode::Add);
-                }
-
-                Some(token) if token.kind() == Kind::Minus => {
-                    self.scanner.next();
-                    self.compile_factor(false);
-                    self.function().add_op(OpCode::Subtract);
-                }
-
-                Some(token) if token.kind() == Kind::Concat => {
-                    self.scanner.next();
-                    self.compile_factor(false);
-                    self.function().add_op(OpCode::Concat);
-                }
-
-                Some(_) => break,
-
-                None => {
-                    self.error("Unexpected end of script", ErrorContext::Compile, None);
-                    break;
-                }
-            };
-        }
-    }
-
-    fn compile_factor(&mut self, can_assign: bool) {
-        self.compile_unary(can_assign);
-        loop {
-            match self.scanner.peek() {
-                Some(token) if token.kind() == Kind::Star => {
-                    self.scanner.next();
-                    self.compile_unary(false);
-                    self.function().add_op(OpCode::Multiply);
-                }
-
-                Some(token) if token.kind() == Kind::Slash => {
-                    self.scanner.next();
-                    self.compile_unary(false);
-                    self.function().add_op(OpCode::Divide);
-                }
-
-                Some(token) if token.kind() == Kind::Percent => {
-                    self.scanner.next();
-                    self.compile_unary(false);
-                    self.function().add_op(OpCode::Rem);
-                }
-
-                Some(_) => break,
-
-                None => {
-                    self.error("Unexpected end of script", ErrorContext::Compile, None);
-                    break;
-                }
-            };
-        }
-    }
-
-    fn compile_unary(&mut self, can_assign: bool) {
-        match self.scanner.peek() {
-            Some(token) if token.kind() == Kind::Not => {
-                self.scanner.next();
-                self.compile_unary(false);
-                self.function().add_op(OpCode::Not);
+            },
+            Expr::Grouping { expr, .. } => {
+                self.compile_expr(expr);
             }
-
-            Some(token) if token.kind() == Kind::Minus => {
-                self.scanner.next();
-                self.compile_unary(false);
-                self.function().add_op(OpCode::Negate);
-            }
-
-            _ => self.compile_call(can_assign),
-        }
-    }
-
-    fn compile_call(&mut self, can_assign: bool) {
-        match self.scanner.peek() {
-            Some(token) if token.kind() == Kind::Identifier => {
-                let token = self.scanner.next().unwrap();
-                let name: String = token.value().unwrap().into();
-
-                match self.scanner.peek() {
-                    Some(next) if next.kind() == Kind::LeftParen => {
-                        self.scanner.next();
-                        let call_err = format!("unexpected {:?} #1", token);
-                        let args = self.compile_arguments(&call_err);
-
-                        self.function().add_op(OpCode::Call);
-                        self.add_constant(Value::Number(self.scope_depth as f64));
-                        self.add_constant(Value::Number(args.into()));
-                        self.add_constant(token.value().unwrap());
-                    }
-
-                    _ => {
-                        self.compile_identifier(name, can_assign);
-                    }
+            Expr::Call { callee, args, .. } => {
+                for arg in args {
+                    self.compile_expr(arg);
                 }
+                self.function().add_op(OpCode::Call);
+                self.add_constant(Value::Number(self.scope_depth as f64));
+                self.add_constant(Value::Number(args.len() as f64));
+                self.add_constant(Value::String(callee.clone()));
             }
-
-            _ => self.compile_primary(),
-        }
-    }
-
-    fn compile_arguments(&mut self, caller_err: &str) -> i32 {
-        let mut args = 0;
-        loop {
-            match self.scanner.peek() {
-                Some(token) if token.kind() == Kind::RightParen => {
-                    self.scanner.next();
-                    break;
-                }
-
-                Some(_) => {
-                    self.compile_expression();
-                    args += 1;
-                    if let ListSep::Break = self.consume_list_separator(caller_err) {
-                        break;
-                    }
-                }
-
-                None => {
-                    self.error("Unexpected end of script", ErrorContext::Compile, None);
-                    break;
-                }
-            }
-        }
-        args
-    }
-
-    fn compile_identifier(&mut self, name: String, can_assign: bool) {
-        let address = self.resolve_local(name.clone());
-
-        match self.scanner.peek().cloned() {
-            Some(token) if token.kind() == Kind::Equal && can_assign => {
-                self.scanner.next();
-                self.compile_expression();
-                self.compile_assignment(name, address);
-            }
-
-            Some(token) if token.kind() == Kind::Equal => {
-                self.scanner.next();
-                self.error("Invalid assignment target", ErrorContext::Compile, None);
-            }
-
-            _ if address.is_some() => {
-                self.function().add_op(OpCode::GetLocal);
-                self.function().add_address(address.unwrap() as usize);
-            }
-
-            _ if self.vm.function_exists(self.scope_depth, &name) => {
-                let (_, address) = self.vm.resolve_function(&name, self.scope_depth).unwrap();
-                self.add_constant(Value::Function((address, None)));
-            }
-
-            _ => {
-                self.resolve_captured_or_global(name);
+            Expr::Narrowing { .. } => {
+                self.error(
+                    "Narrowing is not yet implemented",
+                    ErrorContext::Compile,
+                    None,
+                );
             }
         }
     }
 
-    fn compile_assignment(&mut self, name: String, address: Option<u128>) {
+    fn compile_variable_read(&mut self, name: &str) {
+        let address = self.resolve_local(name.to_string());
+
+        if let Some(addr) = address {
+            self.function().add_op(OpCode::GetLocal);
+            self.function().add_address(addr as usize);
+        } else if self.vm.function_exists(self.scope_depth, &name.to_string()) {
+            let (_, address) = self
+                .vm
+                .resolve_function(&name.to_string(), self.scope_depth)
+                .unwrap();
+            self.add_constant(Value::Function((address, None)));
+        } else {
+            self.resolve_captured_or_global(name.to_string());
+        }
+    }
+
+    fn compile_variable_write(&mut self, name: &str) {
+        let address = self.resolve_local(name.to_string());
         match address {
             Some(address) => {
                 self.function().add_op(OpCode::SetLocal);
                 self.function().add_address(address as usize);
             }
-
             None => match self.globals.iter().find(|variable| **variable == name) {
                 Some(_) => {
                     self.function().add_op(OpCode::SetGlobal);
-                    self.add_constant(Value::String(name));
+                    self.add_constant(Value::String(name.to_string()));
                 }
                 None => {
                     self.error(
@@ -682,7 +360,6 @@ impl<'a> Compiler<'a> {
                         false => None,
                     })
                 }),
-
             None => None,
         };
 
@@ -692,88 +369,10 @@ impl<'a> Compiler<'a> {
                 self.add_constant(Value::String(name.clone()));
                 self.function().add_capture(name, frame, address);
             }
-
             None => {
                 self.function().add_op(OpCode::GetGlobal);
                 self.add_constant(Value::String(name));
             }
-        }
-    }
-
-    fn compile_primary(&mut self) {
-        match self.scanner.next() {
-            Some(token) if token.kind() == Kind::Nil => self.function().add_op(OpCode::Nil),
-            Some(token) if [Kind::Number, Kind::String].contains(&token.kind()) => {
-                self.add_constant(token.value().unwrap())
-            }
-            Some(token) if token.kind() == Kind::True => self.add_constant(Value::Boolean(true)),
-            Some(token) if token.kind() == Kind::False => self.add_constant(Value::Boolean(false)),
-
-            Some(token) if token.kind() == Kind::LeftParen => {
-                self.compile_grouping(token);
-            }
-
-            Some(token) => self.compile_primary_token(token),
-
-            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
-        }
-    }
-
-    fn compile_grouping(&mut self, open_token: crate::syntax::token::Token) {
-        self.compile_expression();
-        match self.scanner.peek() {
-            Some(token) if token.kind() == Kind::RightParen => {
-                self.scanner.next();
-            }
-
-            Some(_) => self.error(
-                format!("unexpected {:?} #2", open_token).as_str(),
-                ErrorContext::Compile,
-                None,
-            ),
-
-            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
-        }
-    }
-
-    fn compile_primary_token(&mut self, token: crate::syntax::token::Token) {
-        match token.kind() {
-            Kind::This => self.error(
-                "Feature 'this' is not yet implemented",
-                ErrorContext::Compile,
-                None,
-            ),
-            Kind::Super => self.error(
-                "Feature 'super' is not yet implemented",
-                ErrorContext::Compile,
-                None,
-            ),
-            Kind::Expands => self.error(
-                "Feature 'expands' is not yet implemented",
-                ErrorContext::Compile,
-                None,
-            ),
-            _ => self.error(
-                format!("unexpected {:?} #3", token).as_str(),
-                ErrorContext::Compile,
-                None,
-            ),
-        }
-    }
-
-    fn expect(&mut self, kind: Kind) {
-        match self.scanner.peek().cloned() {
-            Some(token) if token.kind() == kind => {
-                self.scanner.next();
-            }
-
-            Some(token) => self.error(
-                format!("expected {:?}, got {:?}", kind, token).as_str(),
-                ErrorContext::Compile,
-                None,
-            ),
-
-            None => self.error("Unexpected end of script", ErrorContext::Compile, None),
         }
     }
 
@@ -809,33 +408,6 @@ impl<'a> Compiler<'a> {
         if !self.panicking {
             self.errors.push(LoxError::new(msg, context, line));
             self.panicking = true;
-        }
-    }
-
-    fn synchronize(&mut self) {
-        self.panicking = false;
-        loop {
-            match self.scanner.peek() {
-                Some(token) => match token.kind() {
-                    Kind::Semicolon => {
-                        self.scanner.next();
-                        return;
-                    }
-                    Kind::RightBrace
-                    | Kind::Let
-                    | Kind::Fun
-                    | Kind::While
-                    | Kind::If
-                    | Kind::Return
-                    | Kind::Eof => {
-                        return;
-                    }
-                    _ => {
-                        self.scanner.next();
-                    }
-                },
-                None => return,
-            }
         }
     }
 }
