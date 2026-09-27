@@ -205,7 +205,9 @@ impl<'a> Compiler<'a> {
                 self.locals().retain(|(_, scope)| *scope != current_scope);
                 self.scope_depth -= 1;
             }
-            _ => unreachable!("Return/Let/Fun are handled by compile_declaration and never reach compile_stmt"),
+            _ => unreachable!(
+                "Return/Let/Fun are handled by compile_declaration and never reach compile_stmt"
+            ),
         }
     }
 
