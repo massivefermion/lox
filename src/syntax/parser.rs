@@ -308,33 +308,21 @@ impl<'a> Parser<'a> {
     fn parse_equality(&mut self, can_assign: bool) -> Result<Expr, LoxError> {
         let mut expr = self.parse_comparison(can_assign)?;
         loop {
-            match self.peek_kind() {
-                Some(Kind::EqualEqual) => {
-                    let token = self.scanner.next().unwrap();
-                    let line = token.line();
-                    let right = self.parse_comparison(false)?;
-                    expr = Expr::Binary {
-                        operator: BinaryOp::Equal,
-                        left: Box::new(expr),
-                        right: Box::new(right),
-                        line,
-                        ty: None,
-                    };
-                }
-                Some(Kind::BangEqual) => {
-                    let token = self.scanner.next().unwrap();
-                    let line = token.line();
-                    let right = self.parse_comparison(false)?;
-                    expr = Expr::Binary {
-                        operator: BinaryOp::NotEqual,
-                        left: Box::new(expr),
-                        right: Box::new(right),
-                        line,
-                        ty: None,
-                    };
-                }
+            let op = match self.peek_kind() {
+                Some(Kind::EqualEqual) => BinaryOp::Equal,
+                Some(Kind::BangEqual) => BinaryOp::NotEqual,
                 _ => break,
-            }
+            };
+            let token = self.scanner.next().unwrap();
+            let line = token.line();
+            let right = self.parse_comparison(false)?;
+            expr = Expr::Binary {
+                operator: op,
+                left: Box::new(expr),
+                right: Box::new(right),
+                line,
+                ty: None,
+            };
         }
         Ok(expr)
     }
