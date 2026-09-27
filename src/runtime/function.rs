@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 
-use crate::runtime::chunk::Chunk;
 use crate::compiler::op::OpCode;
+use crate::runtime::chunk::Chunk;
 use crate::runtime::value::Value;
 
 #[derive(Clone)]

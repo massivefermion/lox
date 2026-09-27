@@ -7,7 +7,7 @@ use crate::compiler::op::OpCode;
 use crate::errors::error::InterpretResult;
 use crate::runtime::chunk::Chunk;
 use crate::runtime::function::Function;
-use crate::runtime::nif::{resolve_nif, Nif};
+use crate::runtime::nif::{Nif, resolve_nif};
 use crate::runtime::value::Value;
 use crate::syntax::parser::Parser;
 use crate::syntax::scanner::Scanner;

@@ -9,7 +9,11 @@ pub(crate) struct Token {
 
 impl Token {
     pub(crate) fn new(kind: Kind, start: (usize, usize), value: Option<Value>) -> Token {
-        Token { kind, line: start.0, value }
+        Token {
+            kind,
+            line: start.0,
+            value,
+        }
     }
 
     pub(crate) fn kind(&self) -> Kind {

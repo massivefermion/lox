@@ -88,7 +88,7 @@ impl<'a> Parser<'a> {
                             "Unexpected end of script",
                             ErrorContext::Compile,
                             None,
-                        ))
+                        ));
                     }
                 };
                 self.expect(Kind::Semicolon)?;
@@ -169,7 +169,7 @@ impl<'a> Parser<'a> {
                         "Unexpected end of script",
                         ErrorContext::Compile,
                         None,
-                    ))
+                    ));
                 }
             }
         }
@@ -215,7 +215,7 @@ impl<'a> Parser<'a> {
                         "Unexpected end of script",
                         ErrorContext::Compile,
                         None,
-                    ))
+                    ));
                 }
             }
         }
@@ -499,7 +499,7 @@ impl<'a> Parser<'a> {
                         "Unexpected end of script",
                         ErrorContext::Compile,
                         None,
-                    ))
+                    ));
                 }
             }
         }
@@ -542,14 +542,14 @@ impl<'a> Parser<'a> {
                             &format!("unexpected {:?} #2", token),
                             ErrorContext::Compile,
                             None,
-                        ))
+                        ));
                     }
                     None => {
                         return Err(LoxError::new(
                             "Unexpected end of script",
                             ErrorContext::Compile,
                             None,
-                        ))
+                        ));
                     }
                 }
                 Ok(Expr::Grouping {
