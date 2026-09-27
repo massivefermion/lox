@@ -537,32 +537,8 @@ impl<'a> Parser<'a> {
                 ty: None,
             }),
             Some(token) if token.kind() == Kind::LeftParen => {
-                let line = token.line();
-                let expr = self.parse_expression()?;
-                match self.peek_kind() {
-                    Some(Kind::RightParen) => {
-                        self.scanner.next();
-                    }
-                    Some(_) => {
-                        return Err(LoxError::new(
-                            &format!("unexpected {:?} #2", token),
-                            ErrorContext::Compile,
-                            None,
-                        ));
-                    }
-                    None => {
-                        return Err(LoxError::new(
-                            "Unexpected end of script",
-                            ErrorContext::Compile,
-                            None,
-                        ));
-                    }
-                }
-                Ok(Expr::Grouping {
-                    expr: Box::new(expr),
-                    line,
-                    ty: None,
-                })
+                let err_msg = format!("unexpected {:?} #2", token);
+                self.parse_grouping(token.line(), &err_msg)
             }
             Some(token) if token.kind() == Kind::This => Err(LoxError::new(
                 "Feature 'this' is not yet implemented",
@@ -590,6 +566,30 @@ impl<'a> Parser<'a> {
                 None,
             )),
         }
+    }
+
+    fn parse_grouping(&mut self, line: usize, err_msg: &str) -> Result<Expr, LoxError> {
+        let expr = self.parse_expression()?;
+        match self.peek_kind() {
+            Some(Kind::RightParen) => {
+                self.scanner.next();
+            }
+            Some(_) => {
+                return Err(LoxError::new(err_msg, ErrorContext::Compile, None));
+            }
+            None => {
+                return Err(LoxError::new(
+                    "Unexpected end of script",
+                    ErrorContext::Compile,
+                    None,
+                ));
+            }
+        }
+        Ok(Expr::Grouping {
+            expr: Box::new(expr),
+            line,
+            ty: None,
+        })
     }
 
     fn peek_kind(&mut self) -> Option<Kind> {
