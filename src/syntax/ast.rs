@@ -107,36 +107,43 @@ pub(crate) enum Stmt {
     Expression {
         expr: Expr,
         line: usize,
+        ty: Option<Type>,
     },
     Let {
         name: String,
         initializer: Option<Expr>,
         line: usize,
+        ty: Option<Type>,
     },
     Fun {
         name: String,
         params: Vec<String>,
         body: Vec<Stmt>,
         line: usize,
+        ty: Option<Type>,
     },
     If {
         condition: Expr,
         then_branch: Box<Stmt>,
         else_branch: Option<Box<Stmt>>,
         line: usize,
+        ty: Option<Type>,
     },
     While {
         condition: Expr,
         body: Box<Stmt>,
         line: usize,
+        ty: Option<Type>,
     },
     Block {
         stmts: Vec<Stmt>,
         line: usize,
+        ty: Option<Type>,
     },
     Return {
         value: Expr,
         line: usize,
+        ty: Option<Type>,
     },
 }
 

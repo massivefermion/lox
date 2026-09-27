@@ -44,7 +44,7 @@ impl<'a> Parser<'a> {
                 let line = token.line();
                 let value = self.parse_expression()?;
                 self.expect(Kind::Semicolon)?;
-                Ok(Stmt::Return { value, line })
+                Ok(Stmt::Return { value, line, ty: None })
             }
             Some(Kind::For) => {
                 self.scanner.next();
@@ -96,6 +96,7 @@ impl<'a> Parser<'a> {
                     name,
                     initializer,
                     line,
+                    ty: None,
                 })
             }
             Some(token) => Err(LoxError::new(
@@ -132,6 +133,7 @@ impl<'a> Parser<'a> {
                     params,
                     body,
                     line,
+                    ty: None,
                 })
             }
             Some(token) => Err(LoxError::new(
@@ -194,7 +196,7 @@ impl<'a> Parser<'a> {
                 let expr = self.parse_expression()?;
                 let line = Self::expr_line(&expr);
                 self.expect(Kind::Semicolon)?;
-                Ok(Stmt::Expression { expr, line })
+                Ok(Stmt::Expression { expr, line, ty: None })
             }
             None => Err(LoxError::new(
                 "Unexpected end of script",
@@ -220,7 +222,7 @@ impl<'a> Parser<'a> {
             }
         }
         self.expect(Kind::RightBrace)?;
-        Ok(Stmt::Block { stmts, line })
+        Ok(Stmt::Block { stmts, line, ty: None })
     }
 
     fn parse_if(&mut self, line: usize) -> Result<Stmt, LoxError> {
@@ -238,6 +240,7 @@ impl<'a> Parser<'a> {
             then_branch,
             else_branch,
             line,
+            ty: None,
         })
     }
 
@@ -248,6 +251,7 @@ impl<'a> Parser<'a> {
             condition,
             body,
             line,
+            ty: None,
         })
     }
 
