@@ -501,55 +501,56 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_primary(&mut self) -> Result<Expr, LoxError> {
-        match self.scanner.next() {
-            Some(token) if token.kind() == Kind::Nil => Ok(Expr::Literal {
+        let Some(token) = self.scanner.next() else {
+            return Err(LoxError::new(
+                "Unexpected end of script",
+                ErrorContext::Compile,
+                None,
+            ));
+        };
+        let line = token.line();
+        match token.kind() {
+            Kind::Nil => Ok(Expr::Literal {
                 value: Value::Nil,
-                line: token.line(),
+                line,
                 ty: None,
             }),
-            Some(token) if token.kind() == Kind::Number || token.kind() == Kind::String => {
-                Ok(Expr::Literal {
-                    value: token.value().unwrap(),
-                    line: token.line(),
-                    ty: None,
-                })
-            }
-            Some(token) if token.kind() == Kind::True => Ok(Expr::Literal {
+            Kind::Number | Kind::String => Ok(Expr::Literal {
+                value: token.value().unwrap(),
+                line,
+                ty: None,
+            }),
+            Kind::True => Ok(Expr::Literal {
                 value: Value::Boolean(true),
-                line: token.line(),
+                line,
                 ty: None,
             }),
-            Some(token) if token.kind() == Kind::False => Ok(Expr::Literal {
+            Kind::False => Ok(Expr::Literal {
                 value: Value::Boolean(false),
-                line: token.line(),
+                line,
                 ty: None,
             }),
-            Some(token) if token.kind() == Kind::LeftParen => {
+            Kind::LeftParen => {
                 let err_msg = format!("unexpected {:?} #2", token);
-                self.parse_grouping(token.line(), &err_msg)
+                self.parse_grouping(line, &err_msg)
             }
-            Some(token) if token.kind() == Kind::This => Err(LoxError::new(
+            Kind::This => Err(LoxError::new(
                 "Feature 'this' is not yet implemented",
                 ErrorContext::Compile,
                 None,
             )),
-            Some(token) if token.kind() == Kind::Super => Err(LoxError::new(
+            Kind::Super => Err(LoxError::new(
                 "Feature 'super' is not yet implemented",
                 ErrorContext::Compile,
                 None,
             )),
-            Some(token) if token.kind() == Kind::Expands => Err(LoxError::new(
+            Kind::Expands => Err(LoxError::new(
                 "Feature 'expands' is not yet implemented",
                 ErrorContext::Compile,
                 None,
             )),
-            Some(token) => Err(LoxError::new(
+            _ => Err(LoxError::new(
                 &format!("unexpected {:?} #3", token),
-                ErrorContext::Compile,
-                None,
-            )),
-            None => Err(LoxError::new(
-                "Unexpected end of script",
                 ErrorContext::Compile,
                 None,
             )),
