@@ -205,13 +205,7 @@ impl<'a> Compiler<'a> {
                 self.locals().retain(|(_, scope)| *scope != current_scope);
                 self.scope_depth -= 1;
             }
-            Stmt::Return { value, .. } => {
-                self.compile_expr(value);
-                self.function().add_op(OpCode::Return);
-                self.function().already_returns();
-            }
-            Stmt::Let { .. } => self.compile_let(stmt),
-            Stmt::Fun { .. } => self.compile_fun(stmt),
+            _ => unreachable!("Return/Let/Fun are handled by compile_declaration and never reach compile_stmt"),
         }
     }
 
