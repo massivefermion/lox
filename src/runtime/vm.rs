@@ -272,7 +272,7 @@ impl VM {
             return Some(InterpretResult::RuntimeError);
         };
 
-        let Some((ref mut func, _)) = self.functions.get_mut(address as usize) else {
+        let Some((func, _)) = self.functions.get_mut(address as usize) else {
             return Some(InterpretResult::RuntimeError);
         };
 
