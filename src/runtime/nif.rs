@@ -5,6 +5,7 @@ use crate::runtime::value::Value;
 use crate::runtime::vm::VM;
 
 pub(crate) trait Nif {
+    #[allow(dead_code)]
     fn name(&self) -> String;
     fn arity(&self) -> Option<u128>;
     fn call(&self, vm: &mut VM, args_count: usize) -> Result<(), InterpretResult>;

@@ -205,11 +205,11 @@ impl Scanner<'_> {
             self.source.next();
         }
 
-        if let Some(character) = self.source.peek() {
-            if ['!', '?'].contains(character) {
-                self.storage.push(*character);
-                self.source.next();
-            }
+        if let Some(character) = self.source.peek()
+            && ['!', '?'].contains(character)
+        {
+            self.storage.push(*character);
+            self.source.next();
         }
 
         let token = if let Some(keyword_kind) = Kind::keyword_equivalent(&self.storage) {

@@ -150,12 +150,12 @@ impl VM {
             None => Value::Nil,
         };
 
-        if let Value::Function((address, _)) = return_value {
-            if let Some(returned_function) = self.functions.get_mut(address).cloned() {
-                self.functions.remove(address);
-                self.functions
-                    .insert(address, (returned_function.0, returned_function.1 - 1));
-            };
+        if let Value::Function((address, _)) = return_value
+            && let Some(returned_function) = self.functions.get_mut(address).cloned()
+        {
+            self.functions.remove(address);
+            self.functions
+                .insert(address, (returned_function.0, returned_function.1 - 1));
         };
 
         self.stack.pop();

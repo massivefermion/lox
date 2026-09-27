@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::runtime::value::Value;
 
 /// Placeholder type for the `Option<Type>` annotation field on every AST node.

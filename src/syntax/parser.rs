@@ -273,44 +273,34 @@ impl<'a> Parser<'a> {
 
     fn parse_or(&mut self, can_assign: bool) -> Result<Expr, LoxError> {
         let mut expr = self.parse_and(can_assign)?;
-        loop {
-            match self.peek_kind() {
-                Some(Kind::Or) => {
-                    let token = self.scanner.next().unwrap();
-                    let line = token.line();
-                    let right = self.parse_and(false)?;
-                    expr = Expr::Logical {
-                        operator: LogicalOp::Or,
-                        left: Box::new(expr),
-                        right: Box::new(right),
-                        line,
-                        ty: None,
-                    };
-                }
-                _ => break,
-            }
+        while let Some(Kind::Or) = self.peek_kind() {
+            let token = self.scanner.next().unwrap();
+            let line = token.line();
+            let right = self.parse_and(false)?;
+            expr = Expr::Logical {
+                operator: LogicalOp::Or,
+                left: Box::new(expr),
+                right: Box::new(right),
+                line,
+                ty: None,
+            };
         }
         Ok(expr)
     }
 
     fn parse_and(&mut self, can_assign: bool) -> Result<Expr, LoxError> {
         let mut expr = self.parse_equality(can_assign)?;
-        loop {
-            match self.peek_kind() {
-                Some(Kind::And) => {
-                    let token = self.scanner.next().unwrap();
-                    let line = token.line();
-                    let right = self.parse_equality(false)?;
-                    expr = Expr::Logical {
-                        operator: LogicalOp::And,
-                        left: Box::new(expr),
-                        right: Box::new(right),
-                        line,
-                        ty: None,
-                    };
-                }
-                _ => break,
-            }
+        while let Some(Kind::And) = self.peek_kind() {
+            let token = self.scanner.next().unwrap();
+            let line = token.line();
+            let right = self.parse_equality(false)?;
+            expr = Expr::Logical {
+                operator: LogicalOp::And,
+                left: Box::new(expr),
+                right: Box::new(right),
+                line,
+                ty: None,
+            };
         }
         Ok(expr)
     }
