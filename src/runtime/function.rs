@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 
-use crate::chunk::Chunk;
-use crate::op::OpCode;
-use crate::value::Value;
+use crate::compiler::op::OpCode;
+use crate::runtime::chunk::Chunk;
+use crate::runtime::value::Value;
 
 #[derive(Clone)]
 pub(crate) struct Function {

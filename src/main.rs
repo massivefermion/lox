@@ -2,26 +2,23 @@ use std::env;
 use std::fs::File;
 use std::io::Read;
 
-mod chunk;
 mod compiler;
-mod error;
-mod function;
-mod nif;
-mod op;
-mod scanner;
-mod tests;
-mod token;
-mod value;
-mod vm;
+mod errors;
+mod runtime;
+mod syntax;
+mod types;
 
-use error::InterpretResult;
+#[cfg(test)]
+mod tests;
+
+use errors::error::InterpretResult;
 
 use rustyline::DefaultEditor;
 
 fn main() -> Result<InterpretResult, InterpretResult> {
     let args: Vec<String> = env::args().collect();
 
-    let mut vm = vm::VM::new();
+    let mut vm = runtime::vm::VM::new();
     match &args[..] {
         [_] => repl(&mut vm),
         [_, path] => run_file(&mut vm, path),
@@ -34,7 +31,7 @@ fn main() -> Result<InterpretResult, InterpretResult> {
     }
 }
 
-fn repl(vm: &mut vm::VM) -> Result<InterpretResult, InterpretResult> {
+fn repl(vm: &mut runtime::vm::VM) -> Result<InterpretResult, InterpretResult> {
     match DefaultEditor::new() {
         Ok(mut rl) => {
             loop {
@@ -84,7 +81,7 @@ fn repl(vm: &mut vm::VM) -> Result<InterpretResult, InterpretResult> {
     }
 }
 
-// fn repl(vm: &mut vm::VM) -> Result<(), InterpretResult> {
+// fn repl(vm: &mut runtime::vm::VM) -> Result<(), InterpretResult> {
 //     for line in stdin().lock().lines() {
 //         print!("lox -> ");
 //         match line {
@@ -98,7 +95,7 @@ fn repl(vm: &mut vm::VM) -> Result<InterpretResult, InterpretResult> {
 //     Ok(())
 // }
 
-fn run_file(vm: &mut vm::VM, path: &String) -> Result<InterpretResult, InterpretResult> {
+fn run_file(vm: &mut runtime::vm::VM, path: &String) -> Result<InterpretResult, InterpretResult> {
     match File::open(path) {
         Ok(mut file) => {
             let mut script = String::new();

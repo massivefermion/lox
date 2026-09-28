@@ -1,5 +1,5 @@
-use crate::token::{Kind, Token};
-use crate::value::Value;
+use crate::runtime::value::Value;
+use crate::syntax::token::{Kind, Token};
 use std::iter::Peekable;
 use std::str::Chars;
 
@@ -205,11 +205,11 @@ impl Scanner<'_> {
             self.source.next();
         }
 
-        if let Some(character) = self.source.peek() {
-            if ['!', '?'].contains(character) {
-                self.storage.push(*character);
-                self.source.next();
-            }
+        if let Some(character) = self.source.peek()
+            && ['!', '?'].contains(character)
+        {
+            self.storage.push(*character);
+            self.source.next();
         }
 
         let token = if let Some(keyword_kind) = Kind::keyword_equivalent(&self.storage) {

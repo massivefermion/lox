@@ -1,19 +1,27 @@
-use crate::value::Value;
+use crate::runtime::value::Value;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Token {
     kind: Kind,
-    // start: (usize, usize),
+    line: usize,
     value: Option<Value>,
 }
 
 impl Token {
-    pub(crate) fn new(kind: Kind, _start: (usize, usize), value: Option<Value>) -> Token {
-        Token { kind, value }
+    pub(crate) fn new(kind: Kind, start: (usize, usize), value: Option<Value>) -> Token {
+        Token {
+            kind,
+            line: start.0,
+            value,
+        }
     }
 
     pub(crate) fn kind(&self) -> Kind {
         self.kind.clone()
+    }
+
+    pub(crate) fn line(&self) -> usize {
+        self.line
     }
 
     pub(crate) fn value(&self) -> Option<Value> {

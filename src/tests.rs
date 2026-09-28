@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod test {
-    use crate::error::InterpretResult;
-    use crate::vm::VM;
+    use crate::errors::error::InterpretResult;
+    use crate::runtime::vm::VM;
 
     #[test]
     fn hello_world() {
@@ -697,5 +697,56 @@ mod test {
             InterpretResult::Ok
         );
         assert_eq!(vm.stdout, vec!["10", "6", "3", "1"]);
+    }
+
+    #[test]
+    fn logical_or() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    print(false or false);
+                    print(true or false);
+                    print(false or true);
+                    print(true or true);
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["false", "true", "true", "true"]);
+    }
+
+    #[test]
+    fn logical_not() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    print(not true);
+                    print(not false);
+                    print(not not true);
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["false", "true", "true"]);
+    }
+
+    #[test]
+    fn grouping_expr() {
+        let mut vm = VM::new();
+        assert_eq!(
+            vm.interpret(
+                r#"
+                    print((2 + 3) * 4);
+                    print(2 + (3 * 4));
+                "#
+                .to_string()
+            ),
+            InterpretResult::Ok
+        );
+        assert_eq!(vm.stdout, vec!["20", "14"]);
     }
 }

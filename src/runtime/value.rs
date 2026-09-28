@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::fmt::Display;
 
-use crate::function::Function;
+use crate::runtime::function::Function;
 
 #[derive(Debug, Clone)]
 pub(crate) enum Value {
